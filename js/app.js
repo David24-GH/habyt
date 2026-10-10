@@ -625,6 +625,14 @@
               <span><strong>Név</strong><span class="muted small">Így szólít meg a Ma oldalon.</span></span>
               <input type="text" id="s-hero" maxlength="20" placeholder="Hős" value="${esc(s.heroName || '')}">
             </label>
+            <div class="setting-row">
+              <span><strong>Nem</strong></span>
+              <div class="gender-toggle" role="radiogroup" aria-label="A hős neme">
+                ${Hero.GENDERS.map(gd => `
+                  <button type="button" class="gender-btn" role="radio" data-action="set-gender" data-gender="${gd.id}"
+                    aria-checked="${Hero.gender() === gd.id}" aria-label="${gd.name}" title="${gd.name}">${gd.symbol}</button>`).join('')}
+              </div>
+            </div>
             <div class="setting-row skin-row">
               <span><strong>Bőrszín</strong></span>
               <div class="skin-swatches" role="radiogroup" aria-label="Bőrszín">
@@ -772,6 +780,12 @@
       Store.state.settings.heroSkin = b.dataset.skin;
       Store.save();
       document.querySelectorAll('.skin-swatch').forEach(x => x.setAttribute('aria-checked', x === b));
+      $('#skin-preview').innerHTML = Hero.svg(Hero.compute().stage, 'proud');
+    },
+    'set-gender'(b) {
+      Store.state.settings.heroGender = b.dataset.gender;
+      Store.save();
+      document.querySelectorAll('.gender-btn').forEach(x => x.setAttribute('aria-checked', x === b));
       $('#skin-preview').innerHTML = Hero.svg(Hero.compute().stage, 'proud');
     },
     'cat-filter'(b) { ui.catFilter = b.dataset.cat; render(); },

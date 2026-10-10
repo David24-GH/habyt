@@ -118,7 +118,21 @@ const Hero = (() => {
   const BODY = ['#8a6f55', '#6b4423', '#8b8f99', '#b9bec8', '#2a2a30', '#1c1c22'];
   const TRIM = [null, null, null, '#e11d2e', '#e11d2e', '#f5b941'];
 
-  function face(m) {
+  const GENDERS = [
+    { id: 'm', symbol: '♂', name: 'Férfi' },
+    { id: 'f', symbol: '♀', name: 'Nő' },
+  ];
+  const gender = () => (Store.state.settings.heroGender === 'f' ? 'f' : 'm');
+
+  // Szempilla a női változathoz (a szem külső sarkán).
+  const LASHES = {
+    proud: '<path d="M48.5 47.5l-2.2-1.2M71.5 47.5l2.2-1.2" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/>',
+    sad: '<path d="M49.5 48l-2.4-.6M70.5 48l2.4-.6" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/>',
+    determined: '<path d="M49.4 47.6l-2.4-1M70.6 47.6l2.4-1" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/>',
+    ready: '<path d="M49.4 46.6l-2.4-1.4M70.6 46.6l2.4-1.4" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/>',
+  };
+
+  function face(m, g) {
     const eyes = {
       proud: '<path d="M49 48q3-4 6 0M65 48q3-4 6 0" stroke="#1a1a1a" stroke-width="2.4" fill="none" stroke-linecap="round"/>',
       sad: '<path d="M48 43l7 2M72 43l-7 2" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/><circle cx="52" cy="49" r="2.4" fill="#1a1a1a"/><circle cx="68" cy="49" r="2.4" fill="#1a1a1a"/>',
@@ -131,7 +145,7 @@ const Hero = (() => {
       determined: '<path d="M55 57h10" stroke="#7f1d1d" stroke-width="2.2" stroke-linecap="round"/>',
       ready: '<path d="M54 56q6 5 12 0" stroke="#7f1d1d" stroke-width="2.2" fill="none" stroke-linecap="round"/>',
     }[m];
-    return `${eyes}${mouth}<circle cx="46" cy="54" r="3.2" fill="#e11d2e" opacity=".22"/><circle cx="74" cy="54" r="3.2" fill="#e11d2e" opacity=".22"/>`;
+    return `${eyes}${g === 'f' ? LASHES[m] : ''}${mouth}<circle cx="46" cy="54" r="3.2" fill="#e11d2e" opacity=".22"/><circle cx="74" cy="54" r="3.2" fill="#e11d2e" opacity=".22"/>`;
   }
 
   function weapon(s, id) {
@@ -158,8 +172,13 @@ const Hero = (() => {
     return `<path d="M72 80h28v12c0 9-6 15-14 19-8-4-14-10-14-19z" fill="${fill}" stroke="${rim}" stroke-width="3" stroke-linejoin="round"/>${emblem}`;
   }
 
-  function headgear(s) {
-    const hair = `<path d="M37 47c-2-17 8-26 23-26s25 9 23 26l-5-9-5 6-4-9-5 7-5-8-5 7-4-8-5 9z" fill="${HAIR}"/>`;
+  // Hosszú haj a fej mögött (női változat); a sisakos rangoknál is kilátszik oldalt.
+  const BACK_HAIR = `<path d="M38 40c-6 16-6 32-1 41 4 2 9 2 12-1l1-19h20l1 19c3 3 8 3 12 1 5-9 5-25-1-41z" fill="${HAIR}"/>`;
+
+  function headgear(s, g) {
+    const hair = g === 'f'
+      ? `<path d="M37 47c-2-17 8-26 23-26s25 9 23 26c-3-6-8-10-14-12-5 5-14 9-24 10z" fill="${HAIR}"/><path d="M37 44c-2 8-1 14 2 19l3-1c-2-5-2-11-1-16zM83 44c2 8 1 14-2 19l-3-1c2-5 2-11 1-16z" fill="${HAIR}"/>`
+      : `<path d="M37 47c-2-17 8-26 23-26s25 9 23 26l-5-9-5 6-4-9-5 7-5-8-5 7-4-8-5 9z" fill="${HAIR}"/>`;
     if (s === 0) return hair;
     if (s <= 2) return hair + '<rect x="38" y="35" width="44" height="5" rx="2.5" fill="#e11d2e"/><path d="M80 37l9 4-8 2z" fill="#e11d2e"/>';
     if (s === 3) return '<path d="M60 8c4 4 9 6 9 14-3-2-6-3-9-3z" fill="#e11d2e"/><path d="M36 50c0-18 10-29 24-29s24 11 24 29h-7V40H43v10z" fill="#c9ced6"/><rect x="58" y="38" width="4" height="13" rx="1.5" fill="#9aa0aa"/>';
@@ -173,6 +192,7 @@ const Hero = (() => {
     const body = BODY[s];
     const trim = TRIM[s];
     const skin = skinColor();
+    const g = gender();
     const sparkles = m === 'proud'
       ? '<g class="hero-sparkle" fill="#ffd166"><path d="M14 40l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M104 28l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z"/><path d="M106 70l1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2z"/></g>'
       : '';
@@ -187,6 +207,7 @@ const Hero = (() => {
   <ellipse cx="60" cy="131" rx="30" ry="5" fill="#000" opacity=".45"/>
   <g class="hero-body">
     ${s >= 4 ? `<path d="M41 66q19-8 38 0l13 60q-32 9-64 0z" fill="#b3182a"/>` : ''}
+    ${g === 'f' ? BACK_HAIR : ''}
     <rect x="47" y="104" width="10" height="23" rx="4" fill="${s >= 3 ? '#9aa0aa' : '#3a2a20'}"/>
     <rect x="63" y="104" width="10" height="23" rx="4" fill="${s >= 3 ? '#9aa0aa' : '#3a2a20'}"/>
     ${s >= 1 ? `<rect x="45" y="119" width="14" height="9" rx="3" fill="${s >= 4 ? '#1c1c22' : '#4a2e1a'}"/><rect x="61" y="119" width="14" height="9" rx="3" fill="${s >= 4 ? '#1c1c22' : '#4a2e1a'}"/>` : ''}
@@ -206,12 +227,12 @@ const Hero = (() => {
     ${shield(s)}
     <circle cx="37" cy="49" r="4" fill="${skin}"/><circle cx="83" cy="49" r="4" fill="${skin}"/>
     <circle cx="60" cy="47" r="22" fill="${skin}"/>
-    ${face(m)}
-    ${headgear(s)}
+    ${face(m, g)}
+    ${headgear(s, g)}
   </g>
   ${sparkles}
 </svg>`;
   }
 
-  return { STAGES, SKINS, XP_HABIT, XP_PERFECT, XP_MISS, compute, levelStart, message, name, skinId, svg };
+  return { STAGES, SKINS, GENDERS, gender, XP_HABIT, XP_PERFECT, XP_MISS, compute, levelStart, message, name, skinId, svg };
 })();

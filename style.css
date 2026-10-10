@@ -423,6 +423,22 @@ main {
 .hero-custom-fields { flex: 1; min-width: 0; }
 .hero-custom-fields input[type="text"] { width: 150px; max-width: 100%; }
 .skin-row { flex-wrap: wrap; border-bottom: 0; }
+.gender-toggle { display: flex; gap: 8px; }
+.gender-btn {
+  width: 44px;
+  height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.gender-btn:hover { border-color: #3a3a42; color: var(--text); }
+.gender-btn[aria-checked="true"] { background: var(--red); border-color: var(--red); color: #fff; box-shadow: 0 6px 18px -8px var(--red-glow); }
 .skin-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
 .skin-swatch {
   width: 32px;
