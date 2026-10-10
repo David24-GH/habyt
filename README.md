@@ -3,6 +3,8 @@
 Piros–fekete szokáskövető app esti check-innel, éves hőtérképpel, havi naptárral és streakekkel.
 Telepíthető webapp (PWA): PC-n saját ablakban fut, telefonon a kezdőképernyőre tehető, és net nélkül is működik.
 
+**Élő oldal:** https://habyt-sooty.vercel.app
+
 ## Funkciók
 
 - **Ma**: a napi szokások kipipálása, haladásjelző, „tökéletes nap” ünneplés. Nyilakkal a korábbi napok is pótolhatók.
@@ -31,7 +33,7 @@ Kikapcsolás: `uninstall-reminder.ps1`.
 
 ## Telefonra telepítés
 
-1. Nyisd meg az app webcímét (Vercel) a telefonon.
+1. Nyisd meg a https://habyt-sooty.vercel.app címet a telefonon.
 2. Androidon (Chrome): menü → **Alkalmazás telepítése**. iPhone-on (Safari): Megosztás → **Főképernyőhöz adás**.
 
 ## Adatok

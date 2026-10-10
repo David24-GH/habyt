@@ -3,7 +3,7 @@
 #   powershell -ExecutionPolicy Bypass -File .\install-reminder.ps1
 #   powershell -ExecutionPolicy Bypass -File .\install-reminder.ps1 -Time 21:30 -Url "https://sajat-cim.vercel.app/?checkin=1"
 param(
-  [string]$Url = 'https://habyt.vercel.app/?checkin=1',
+  [string]$Url = 'https://habyt-sooty.vercel.app/?checkin=1',
   [string]$Time = '20:00'
 )
 
