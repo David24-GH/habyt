@@ -60,8 +60,8 @@
     toast.timer = setTimeout(() => t.classList.remove('show'), 2600);
   }
 
-  function celebrate() {
-    toast('Tökéletes nap! 🔥 Minden szokás kész.');
+  function celebrate(msg) {
+    if (msg) toast(msg);
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const box = document.createElement('div');
     box.className = 'confetti';
@@ -129,6 +129,8 @@
           </div>
         </div>` : ''}
 
+      ${isToday ? renderHeroCard() : ''}
+
       <div class="card progress-card">
         <svg class="ring" viewBox="0 0 80 80" aria-hidden="true">
           <circle cx="40" cy="40" r="34" class="ring-bg"/>
@@ -166,6 +168,91 @@
     `;
   }
 
+  // ---------- Hős ----------
+
+  const xpPct = h => Math.round((h.into / h.need) * 100);
+
+  function renderHeroCard() {
+    const h = Hero.compute();
+    return `
+      <div class="card hero-card" id="hero-card">
+        <div class="hero-figure">${Hero.svg(h.stage, h.mood)}</div>
+        <div class="hero-info">
+          <div class="hero-top">
+            <strong class="hero-name">${esc(Hero.name())}</strong>
+            <span class="hero-rank">${h.stageName}</span>
+          </div>
+          <div class="hero-level"><span>${h.level}. szint</span><span class="muted small">${h.into} / ${h.need} XP</span></div>
+          <div class="xp-bar" role="progressbar" aria-label="Tapasztalat a következő szintig" aria-valuemin="0" aria-valuemax="${h.need}" aria-valuenow="${h.into}"><span style="width:${xpPct(h)}%"></span></div>
+          <p class="hero-bubble">${esc(Hero.message(h))}</p>
+        </div>
+      </div>`;
+  }
+
+  function renderHeroPanel() {
+    const h = Hero.compute();
+    return `
+      <div class="card hero-panel">
+        <div class="hero-panel-main">
+          <div class="hero-figure big">${Hero.svg(h.stage, h.mood)}</div>
+          <div class="hero-info">
+            <span class="eyebrow">Hősöd</span>
+            <h2 class="hero-panel-name">${esc(Hero.name())}</h2>
+            <div class="hero-top"><span class="hero-rank">${h.stageName}</span><span class="muted small">${h.level}. szint · ${h.xp} XP összesen</span></div>
+            <div class="xp-bar"><span style="width:${xpPct(h)}%"></span></div>
+            <p class="muted small">${h.into} / ${h.need} XP a ${h.level + 1}. szintig</p>
+            <p class="hero-next">${h.next
+              ? `Következő rang: <strong>${h.next.name}</strong> a ${h.next.min}. szinten – még ${h.toNext} XP.`
+              : 'Elérted a legmagasabb rangot. Legenda vagy! 👑'}</p>
+          </div>
+        </div>
+        <div class="hero-road">
+          ${Hero.STAGES.map((st, i) => `
+            <div class="road-step ${i <= h.stage ? 'is-unlocked' : 'is-locked'} ${i === h.stage ? 'is-current' : ''}">
+              ${Hero.svg(i, 'ready', 'mini')}
+              <span class="road-name">${st.name}</span>
+              <span class="road-lvl">${i <= h.stage ? (i === h.stage ? 'Most' : '✓') : `🔒 ${st.min}. szint`}</span>
+            </div>`).join('')}
+        </div>
+        <p class="muted small hero-rules">+${Hero.XP_HABIT} XP minden teljesített szokásért · +${Hero.XP_PERFECT} XP tökéletes napért · −${Hero.XP_MISS} XP, ha egy napon semmit nem teljesítesz (az elért rangból nem esel vissza).</p>
+      </div>`;
+  }
+
+  function showXp(diff) {
+    if (!diff) return;
+    const card = $('#hero-card');
+    const label = (diff > 0 ? '+' : '−') + Math.abs(diff) + ' XP';
+    if (!card) return;
+    const f = document.createElement('span');
+    f.className = 'xp-float ' + (diff > 0 ? 'up' : 'down');
+    f.textContent = label;
+    card.appendChild(f);
+    setTimeout(() => f.remove(), 1300);
+  }
+
+  function showEvolution(h) {
+    const st = Hero.STAGES[h.stage];
+    $('#evolve-figure').innerHTML = Hero.svg(h.stage, 'proud');
+    $('#evolve-title').textContent = `${Hero.name()} mostantól: ${st.name}!`;
+    $('#evolve-text').textContent = `${h.level}. szint · Új felszerelés: ${st.gear}`;
+    $('#evolve-dialog').showModal();
+  }
+
+  // Pipálás utáni visszajelzés: XP, szintlépés, rangfejlődés, tökéletes nap.
+  function heroFeedback(before, perfectNow) {
+    const after = Hero.compute();
+    showXp(after.xp - before.xp);
+    if (after.stage > before.stage) {
+      showEvolution(after);
+      celebrate(null);
+    } else if (after.level > before.level) {
+      celebrate(perfectNow ? `Tökéletes nap! 🔥 Szintlépés: ${after.level}. szint ⬆️` : `Szintlépés! ${after.level}. szint ⬆️`);
+      $('#hero-card')?.classList.add('level-up');
+    } else if (perfectNow) {
+      celebrate('Tökéletes nap! 🔥 Minden szokás kész.');
+    }
+  }
+
   function renderWelcome() {
     const s = Store.state;
     return `
@@ -175,6 +262,13 @@
           <h1>Építsünk szokásokat.</h1>
         </div>
       </header>
+      <div class="card hero-card hero-intro">
+        <div class="hero-figure">${Hero.svg(0, 'ready')}</div>
+        <div class="hero-info">
+          <strong class="hero-name">${esc(Hero.name())}, az Újonc</strong>
+          <p class="hero-bubble">Szia! Én vagyok a hősöd. Minden teljesített szokásod erősebbé tesz: szintet lépek, és egyszer talán Legenda leszek! ⚔️</p>
+        </div>
+      </div>
       <div class="card hero">
         <p>Válassz 1–3 szokást az induláshoz. Minden este ${esc(s.settings.reminderTime)}-kor itt pipálhatod ki, mit teljesítettél, a sorozataidat pedig a Statisztikában követheted.</p>
       </div>
@@ -381,6 +475,8 @@
     el.innerHTML = `
       <header class="view-head"><div><span class="eyebrow">Visszatekintés</span><h1>Statisztika</h1></div></header>
 
+      ${renderHeroPanel()}
+
       <div class="tiles">
         <div class="tile tile-hot"><span class="tile-label">Tökéletes napok sorozata</span><span class="tile-value">🔥 ${Stats.perfectStreak()}</span></div>
         <div class="tile"><span class="tile-label">Leghosszabb sorozat</span><span class="tile-value">🏆 ${Stats.perfectBest()}</span></div>
@@ -521,6 +617,14 @@
       </div>
 
       <div class="card settings">
+        <h2>Hősöd</h2>
+        <label class="setting-row">
+          <span><strong>Név</strong><span class="muted small">Így szólít meg a Ma oldalon.</span></span>
+          <input type="text" id="s-hero" maxlength="20" placeholder="Hős" value="${esc(s.heroName || '')}">
+        </label>
+      </div>
+
+      <div class="card settings">
         <h2>Cél</h2>
         <label class="setting-row">
           <span><strong>Fő célod</strong><span class="muted small">Ez alapján kapsz szokásjavaslatokat.</span></span>
@@ -557,6 +661,11 @@
       s.lastNotified = null;
       Store.save();
       toast(`Esti check-in: ${s.reminderTime}`);
+    });
+    $('#s-hero').addEventListener('change', e => {
+      s.heroName = e.target.value.trim();
+      Store.save();
+      toast(`A hősöd neve: ${Hero.name()}`);
     });
     $('#s-goal').addEventListener('change', e => {
       s.goal = e.target.value || null;
@@ -626,10 +735,11 @@
       const k = ui.dayKey;
       const due = Store.dueHabits(k);
       const wasPerfect = due.length && due.every(h => Store.isDone(k, h.id));
+      const before = Hero.compute();
       Store.toggle(k, b.dataset.id);
       const isPerfect = due.every(h => Store.isDone(k, h.id));
       render();
-      if (!wasPerfect && isPerfect) celebrate();
+      heroFeedback(before, !wasPerfect && isPerfect);
     },
     'day-prev'() { ui.dayKey = D.add(ui.dayKey, -1); render(); },
     'day-next'() { if (ui.dayKey < D.today()) { ui.dayKey = D.add(ui.dayKey, 1); render(); } },
@@ -652,10 +762,12 @@
     'cal-toggle'(b) {
       const sc = $('#heatmap-scroll')?.scrollLeft;
       const y = window.scrollY;
+      const before = Hero.compute();
       Store.toggle(b.dataset.key, ui.calHabit);
       render();
       window.scrollTo(0, y);
       if (sc != null) $('#heatmap-scroll').scrollLeft = sc;
+      heroFeedback(before, false);
     },
     'heat-day'(b) {
       ui.dayKey = b.dataset.key;
