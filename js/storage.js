@@ -22,26 +22,39 @@ const D = {
 };
 
 // Az app teljes állapota localStorage-ban.
+// A szinkronhoz minden változás időbélyeget kap (habit.updatedAt, stamps, deleted, settingsAt),
+// így két eszköz adatai összefésülhetők: ugyanannál az elemnél a későbbi módosítás nyer.
 const Store = (() => {
   const KEY = 'habyt:v1';
   const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+  // Ezek a beállítások eszközönként mások lehetnek, nem szinkronizálódnak.
+  const LOCAL_SETTINGS = ['notify', 'lastNotified'];
 
   const fresh = () => ({
-    version: 1,
+    version: 2,
     habits: [],
     log: {},
+    stamps: {},   // "YYYY-MM-DD|habitId" -> utolsó pipálás/kivétel ideje (ms)
+    deleted: {},  // törölt szokás id -> törlés ideje (ms)
     settings: { reminderTime: '20:00', goal: null, onboarded: false, notify: false, lastNotified: null },
+    settingsAt: 0,
   });
+
+  const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
 
   function normalize(p) {
     const f = fresh();
-    if (!p || typeof p !== 'object') return f;
+    if (!isObj(p)) return f;
     return {
       ...f,
       ...p,
-      settings: { ...f.settings, ...(p.settings || {}) },
+      version: 2,
+      settings: { ...f.settings, ...(isObj(p.settings) ? p.settings : {}) },
       habits: Array.isArray(p.habits) ? p.habits : [],
-      log: p.log && typeof p.log === 'object' ? p.log : {},
+      log: isObj(p.log) ? p.log : {},
+      stamps: isObj(p.stamps) ? p.stamps : {},
+      deleted: isObj(p.deleted) ? p.deleted : {},
+      settingsAt: Number(p.settingsAt) || 0,
     };
   }
 
@@ -54,18 +67,92 @@ const Store = (() => {
   }
 
   let state = load();
+  const listeners = new Set();
 
-  function save() {
+  function persist() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* nem menthető */ }
+  }
+
+  // Felhasználói változás: mentés + értesítés (pl. a szinkronnak).
+  function save() {
+    persist();
+    listeners.forEach(fn => fn());
   }
 
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const find = id => state.habits.find(h => h.id === id);
 
+  // A szerverre kerülő rész (eszközfüggő beállítások nélkül).
+  function shareable(s = state) {
+    const settings = { ...s.settings };
+    LOCAL_SETTINGS.forEach(k => delete settings[k]);
+    return { version: 2, habits: s.habits, log: s.log, stamps: s.stamps, deleted: s.deleted, settings, settingsAt: s.settingsAt };
+  }
+
+  // Sorrendfüggetlen szöveges alak összehasonlításhoz (a szerver átrendezheti a kulcsokat).
+  function canonical(x) {
+    const norm = v => {
+      if (Array.isArray(v)) return v.map(norm);
+      if (isObj(v)) return Object.keys(v).sort().reduce((o, k) => { o[k] = norm(v[k]); return o; }, {});
+      return v;
+    };
+    const s = norm(x);
+    if (Array.isArray(s.habits)) s.habits = [...s.habits].sort((a, b) => (a.id < b.id ? -1 : 1));
+    if (isObj(s.log)) for (const k of Object.keys(s.log)) s.log[k] = [...s.log[k]].sort();
+    return JSON.stringify(s);
+  }
+
+  function presence(s) {
+    const set = new Set();
+    for (const [k, list] of Object.entries(s.log)) for (const id of list) set.add(k + '|' + id);
+    return set;
+  }
+
+  // Két állapot összefésülése. Az eszközfüggő beállítások a helyiből jönnek.
+  function merge(local, remoteRaw) {
+    const remote = normalize(remoteRaw);
+
+    const deleted = { ...remote.deleted };
+    for (const [id, t] of Object.entries(local.deleted)) deleted[id] = Math.max(deleted[id] || 0, t);
+
+    const byId = new Map();
+    for (const h of [...remote.habits, ...local.habits]) {
+      const cur = byId.get(h.id);
+      if (!cur || (h.updatedAt || 0) >= (cur.updatedAt || 0)) byId.set(h.id, h);
+    }
+    const order = [...local.habits.map(h => h.id), ...remote.habits.map(h => h.id).filter(id => !local.habits.some(h => h.id === id))];
+    const habits = order
+      .map(id => byId.get(id))
+      .filter(h => !(deleted[h.id] && deleted[h.id] >= (h.updatedAt || 0)));
+    const alive = new Set(habits.map(h => h.id));
+
+    const lp = presence(local);
+    const rp = presence(remote);
+    const keys = new Set([...Object.keys(local.stamps), ...Object.keys(remote.stamps), ...lp, ...rp]);
+    const stamps = {};
+    const log = {};
+    for (const key of [...keys].sort()) {
+      const [k, id] = key.split('|');
+      if (!alive.has(id)) continue;
+      const ls = local.stamps[key] || 0;
+      const rs = remote.stamps[key] || 0;
+      const present = ls > rs ? lp.has(key) : rs > ls ? rp.has(key) : lp.has(key) || rp.has(key);
+      if (ls || rs) stamps[key] = Math.max(ls, rs);
+      if (present) (log[k] = log[k] || []).push(id);
+    }
+
+    const shared = remote.settingsAt > local.settingsAt ? remote.settings : local.settings;
+    const settings = { ...local.settings, ...shared };
+    LOCAL_SETTINGS.forEach(k => { settings[k] = local.settings[k]; });
+
+    return { ...local, version: 2, habits, log, stamps, deleted, settings, settingsAt: Math.max(local.settingsAt, remote.settingsAt) };
+  }
+
   return {
     get state() { return state; },
     save,
     find,
+    onChange(fn) { listeners.add(fn); },
 
     addHabit({ name, icon, category, days, catalogId }) {
       const habit = {
@@ -77,6 +164,7 @@ const Store = (() => {
         catalogId: catalogId || null,
         createdKey: D.today(),
         archivedKey: null,
+        updatedAt: Date.now(),
       };
       state.habits.push(habit);
       save();
@@ -86,7 +174,7 @@ const Store = (() => {
     updateHabit(id, patch) {
       const h = find(id);
       if (!h) return;
-      Object.assign(h, patch);
+      Object.assign(h, patch, { updatedAt: Date.now() });
       save();
     },
 
@@ -96,11 +184,26 @@ const Store = (() => {
 
     remove(id) {
       state.habits = state.habits.filter(h => h.id !== id);
+      state.deleted[id] = Date.now();
       for (const k of Object.keys(state.log)) {
         state.log[k] = state.log[k].filter(x => x !== id);
         if (!state.log[k].length) delete state.log[k];
       }
+      for (const key of Object.keys(state.stamps)) if (key.endsWith('|' + id)) delete state.stamps[key];
       save();
+    },
+
+    // Közös (szinkronizált) beállítások módosítása.
+    setShared(patch) {
+      Object.assign(state.settings, patch);
+      state.settingsAt = Date.now();
+      save();
+    },
+
+    // Csak ezen az eszközön érvényes beállítások.
+    setLocal(patch) {
+      Object.assign(state.settings, patch);
+      persist();
     },
 
     isDone(k, id) {
@@ -127,6 +230,7 @@ const Store = (() => {
     toggle(k, id) {
       const h = find(id);
       if (!h) return false;
+      const now = Date.now();
       const list = state.log[k] || [];
       const done = list.includes(id);
       if (done) {
@@ -135,8 +239,9 @@ const Store = (() => {
       } else {
         state.log[k] = [...list, id];
         // Utólagos pótlásnál a szokás "kezdete" visszacsúszik erre a napra.
-        if (k < h.createdKey) h.createdKey = k;
+        if (k < h.createdKey) { h.createdKey = k; h.updatedAt = now; }
       }
+      state.stamps[k + '|' + id] = now;
       save();
       return !done;
     },
@@ -145,16 +250,49 @@ const Store = (() => {
       return JSON.stringify(state, null, 2);
     },
 
+    // Betöltés fájlból: minden betöltött elem "most módosult", így szinkronnál ez nyer.
     importJSON(text) {
       const p = JSON.parse(text);
-      if (!p || !Array.isArray(p.habits) || typeof p.log !== 'object') throw new Error('invalid');
-      state = normalize(p);
+      if (!p || !Array.isArray(p.habits) || !isObj(p.log)) throw new Error('invalid');
+      const now = Date.now();
+      const next = normalize(p);
+      next.habits.forEach(h => { h.updatedAt = now; });
+      for (const [k, list] of Object.entries(next.log)) for (const id of list) next.stamps[k + '|' + id] = now;
+      next.settingsAt = now;
+      LOCAL_SETTINGS.forEach(k => { next.settings[k] = state.settings[k]; });
+      state = next;
       save();
     },
 
+    // Minden törlése: a szokások törlésként szinkronizálódnak a többi eszközre is.
     reset() {
-      state = fresh();
+      const now = Date.now();
+      const next = fresh();
+      next.deleted = { ...state.deleted };
+      state.habits.forEach(h => { next.deleted[h.id] = now; });
+      next.settingsAt = now;
+      LOCAL_SETTINGS.forEach(k => { next.settings[k] = state.settings[k]; });
+      state = next;
       save();
+    },
+
+    // --- Szinkron ---
+    shareable,
+    canonical,
+    merge,
+
+    // Igaz, ha a helyi (közös) adat pontosan megegyezik a szerveren lévővel.
+    matches(remote) {
+      return !!remote && canonical(shareable()) === canonical(shareable(normalize(remote)));
+    },
+
+    // A szerverről jött adat összefésülése a helyivel. Igaz, ha a helyi adat megváltozott.
+    mergeRemote(remote) {
+      if (!remote) return false;
+      const before = canonical(shareable());
+      state = merge(state, remote);
+      persist();
+      return canonical(shareable()) !== before;
     },
   };
 })();

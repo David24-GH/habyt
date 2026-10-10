@@ -36,10 +36,25 @@ Kikapcsolás: `uninstall-reminder.ps1`.
 1. Nyisd meg a https://habyt-sooty.vercel.app címet a telefonon.
 2. Androidon (Chrome): menü → **Alkalmazás telepítése**. iPhone-on (Safari): Megosztás → **Főképernyőhöz adás**.
 
-## Adatok
+## Szinkronizálás (PC ↔ telefon)
 
-Az adatok eszközönként, a böngészőben tárolódnak (localStorage). PC és telefon között a **Beállítások → Mentés fájlba / Betöltés fájlból** gombokkal viheted át őket.
+**Beállítások → Szinkronizálás**: jelentkezz be ugyanazzal az email-címmel és jelszóval minden eszközön.
+Az adatok a böngészőben is megmaradnak, így az app net nélkül is megy, és amint lesz internet, szinkronizál.
+
+- Ha az egyik eszközön az egyik, a másikon egy másik szokást pipálsz ki, mindkettő megmarad.
+- Ha ugyanazt módosítod két helyen, a későbbi módosítás nyer.
+- Az értesítés be-/kikapcsolása eszközönként külön marad.
+
+### Beállítás egyszer (Supabase)
+
+1. Hozz létre egy ingyenes projektet a https://supabase.com oldalon.
+2. **SQL Editor** → új lekérdezés → másold be a [supabase/schema.sql](supabase/schema.sql) tartalmát → **Run**.
+3. **Authentication → URL Configuration → Site URL**: `https://habyt-sooty.vercel.app`.
+4. Írd be a projekt címét és a *publishable* (vagy *anon*) kulcsot a [js/config.js](js/config.js) fájlba.
+   A *secret* / *service_role* kulcs soha ne kerüljön a kódba.
+
+Biztonsági mentés fájlba továbbra is készíthető: **Beállítások → Mentés fájlba**.
 
 ## Tervezett következő lépés
 
-Bejelentkezés és automatikus szinkron a PC és a telefon között (Supabase), valamint 20:00-s push értesítés telefonra (Vercel cron + Web Push).
+20:00-s push értesítés telefonra (Vercel cron + Web Push).
