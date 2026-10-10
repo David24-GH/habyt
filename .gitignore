@@ -1,0 +1,11 @@
+# Operációs rendszer
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Szerkesztők és eszközök
+.vscode/
+.idea/
+.claude/
+*.log
+.vercel/
