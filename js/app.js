@@ -618,10 +618,23 @@
 
       <div class="card settings">
         <h2>Hősöd</h2>
-        <label class="setting-row">
-          <span><strong>Név</strong><span class="muted small">Így szólít meg a Ma oldalon.</span></span>
-          <input type="text" id="s-hero" maxlength="20" placeholder="Hős" value="${esc(s.heroName || '')}">
-        </label>
+        <div class="hero-custom">
+          <div class="hero-figure" id="skin-preview">${Hero.svg(Hero.compute().stage, 'ready')}</div>
+          <div class="hero-custom-fields">
+            <label class="setting-row">
+              <span><strong>Név</strong><span class="muted small">Így szólít meg a Ma oldalon.</span></span>
+              <input type="text" id="s-hero" maxlength="20" placeholder="Hős" value="${esc(s.heroName || '')}">
+            </label>
+            <div class="setting-row skin-row">
+              <span><strong>Bőrszín</strong></span>
+              <div class="skin-swatches" role="radiogroup" aria-label="Bőrszín">
+                ${Hero.SKINS.map(sk => `
+                  <button type="button" class="skin-swatch" role="radio" data-action="set-skin" data-skin="${sk.id}"
+                    aria-checked="${Hero.skinId() === sk.id}" aria-label="${sk.name}" title="${sk.name}" style="--skin:${sk.color}"></button>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="card settings">
@@ -754,6 +767,12 @@
       Store.save();
       toast(`Cél: ${GOALS[b.dataset.goal].label}`);
       render();
+    },
+    'set-skin'(b) {
+      Store.state.settings.heroSkin = b.dataset.skin;
+      Store.save();
+      document.querySelectorAll('.skin-swatch').forEach(x => x.setAttribute('aria-checked', x === b));
+      $('#skin-preview').innerHTML = Hero.svg(Hero.compute().stage, 'proud');
     },
     'cat-filter'(b) { ui.catFilter = b.dataset.cat; render(); },
     'cal-habit'(b) { ui.calHabit = b.dataset.id; render(); },

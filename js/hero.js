@@ -98,7 +98,22 @@ const Hero = (() => {
 
   let uid = 0;
 
-  const SKIN = '#f2c9a0';
+  const SKINS = [
+    { id: 'vilagos', name: 'Világos', color: '#f7dcc6' },
+    { id: 'bezs', name: 'Bézs', color: '#f2c9a0' },
+    { id: 'barack', name: 'Barackos', color: '#e2aa7e' },
+    { id: 'oliva', name: 'Olíva', color: '#c68b5c' },
+    { id: 'barna', name: 'Barna', color: '#9a6440' },
+    { id: 'sotet', name: 'Sötétbarna', color: '#6b4428' },
+  ];
+  const DEFAULT_SKIN = 'bezs';
+
+  function skinId() {
+    const id = Store.state.settings.heroSkin;
+    return SKINS.some(sk => sk.id === id) ? id : DEFAULT_SKIN;
+  }
+
+  const skinColor = () => SKINS.find(sk => sk.id === skinId()).color;
   const HAIR = '#2a1a14';
   const BODY = ['#8a6f55', '#6b4423', '#8b8f99', '#b9bec8', '#2a2a30', '#1c1c22'];
   const TRIM = [null, null, null, '#e11d2e', '#e11d2e', '#f5b941'];
@@ -157,6 +172,7 @@ const Hero = (() => {
     const s = Math.max(0, Math.min(5, stage));
     const body = BODY[s];
     const trim = TRIM[s];
+    const skin = skinColor();
     const sparkles = m === 'proud'
       ? '<g class="hero-sparkle" fill="#ffd166"><path d="M14 40l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M104 28l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z"/><path d="M106 70l1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2z"/></g>'
       : '';
@@ -181,15 +197,15 @@ const Hero = (() => {
     ${s === 5 ? '<path d="M60 78l3 5-3 5-3-5z" fill="#1c1c22"/>' : ''}
     <rect x="40" y="96" width="40" height="6" rx="2" fill="#2a1a10"/>
     ${s >= 2 ? `<rect x="56" y="95" width="8" height="8" rx="1.5" fill="${s === 5 ? '#f5b941' : '#c9ced6'}"/>` : ''}
-    <rect x="30" y="72" width="11" height="27" rx="5.5" fill="${s >= 3 ? body : SKIN}"/>
-    <rect x="79" y="72" width="11" height="27" rx="5.5" fill="${s >= 3 ? body : SKIN}"/>
+    <rect x="30" y="72" width="11" height="27" rx="5.5" fill="${s >= 3 ? body : skin}"/>
+    <rect x="79" y="72" width="11" height="27" rx="5.5" fill="${s >= 3 ? body : skin}"/>
     ${s >= 4 ? `<path d="M29 75a9 8 0 0 1 18-4z" fill="${body}" stroke="${trim}" stroke-width="2" stroke-linejoin="round"/><path d="M91 75a9 8 0 0 0-18-4z" fill="${body}" stroke="${trim}" stroke-width="2" stroke-linejoin="round"/>` : ''}
     ${weapon(s, id)}
-    <circle cx="35.5" cy="100" r="5.5" fill="${SKIN}"/>
-    <circle cx="84.5" cy="100" r="5.5" fill="${SKIN}"/>
+    <circle cx="35.5" cy="100" r="5.5" fill="${skin}"/>
+    <circle cx="84.5" cy="100" r="5.5" fill="${skin}"/>
     ${shield(s)}
-    <circle cx="37" cy="49" r="4" fill="${SKIN}"/><circle cx="83" cy="49" r="4" fill="${SKIN}"/>
-    <circle cx="60" cy="47" r="22" fill="${SKIN}"/>
+    <circle cx="37" cy="49" r="4" fill="${skin}"/><circle cx="83" cy="49" r="4" fill="${skin}"/>
+    <circle cx="60" cy="47" r="22" fill="${skin}"/>
     ${face(m)}
     ${headgear(s)}
   </g>
@@ -197,5 +213,5 @@ const Hero = (() => {
 </svg>`;
   }
 
-  return { STAGES, XP_HABIT, XP_PERFECT, XP_MISS, compute, levelStart, message, name, svg };
+  return { STAGES, SKINS, XP_HABIT, XP_PERFECT, XP_MISS, compute, levelStart, message, name, skinId, svg };
 })();
