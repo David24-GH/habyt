@@ -631,7 +631,6 @@
 
   function renderProfile() {
     const el = $('#view-profil');
-    const s = Store.state.settings;
     const { badges, tracks, earned } = Badges.compute();
     const featured = Badges.featured(earned);
     const fresh = new Set(Badges.unseen(earned));
@@ -664,35 +663,7 @@
       <header class="view-head"><div><span class="eyebrow">Hősöd és eredményeid</span><h1>Profil</h1></div></header>
 
       ${Store.state.habits.length ? renderHeroPanel() : ''}
-
-      <div class="card settings">
-        <h2>Hős testreszabása</h2>
-        <div class="hero-custom">
-          <div class="hero-figure" id="skin-preview">${Hero.svg(Hero.compute().stage, 'ready')}</div>
-          <div class="hero-custom-fields">
-            <label class="setting-row">
-              <span><strong>Név</strong><span class="muted small">Így szólít meg a Ma oldalon.</span></span>
-              <input type="text" id="s-hero" maxlength="20" placeholder="Hős" value="${esc(s.heroName || '')}">
-            </label>
-            <div class="setting-row">
-              <span><strong>Nem</strong></span>
-              <div class="gender-toggle" role="radiogroup" aria-label="A hős neme">
-                ${Hero.GENDERS.map(gd => `
-                  <button type="button" class="gender-btn" role="radio" data-action="set-gender" data-gender="${gd.id}"
-                    aria-checked="${Hero.gender() === gd.id}" aria-label="${gd.name}" title="${gd.name}">${gd.symbol}</button>`).join('')}
-              </div>
-            </div>
-            <div class="setting-row skin-row">
-              <span><strong>Bőrszín</strong></span>
-              <div class="skin-swatches" role="radiogroup" aria-label="Bőrszín">
-                ${Hero.SKINS.map(sk => `
-                  <button type="button" class="skin-swatch" role="radio" data-action="set-skin" data-skin="${sk.id}"
-                    aria-checked="${Hero.skinId() === sk.id}" aria-label="${sk.name}" title="${sk.name}" style="--skin:${sk.color}"></button>`).join('')}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <p class="muted small profile-custom-link">A hősöd nevét, nemét és bőrszínét a <a href="#beallitasok">Beállításokban</a> szabhatod testre.</p>
 
       <h2 class="section-title">⚔️ Kihívások</h2>
       <p class="muted small section-sub">Automatikusan futnak: érd el a sorozatot, és megkapod a badge-et. Egy megszerzett badge-et nem veszíthetsz el.</p>
@@ -726,13 +697,6 @@
         }).join('')}
       </div>
     `;
-
-    $('#s-hero').addEventListener('change', e => {
-      s.heroName = e.target.value.trim();
-      Store.save();
-      toast(`A hősöd neve: ${Hero.name()}`);
-      render();
-    });
 
     // Az itt megmutatott új badge-ek innentől "látottak".
     if (fresh.size) { Badges.markSeen([...fresh]); updateNavDot(); }
@@ -789,8 +753,33 @@
       </div>
 
       <div class="card settings">
-        <h2>Hősöd</h2>
-        <p class="muted small">A hősöd nevét, nemét és bőrszínét, valamint a kiemelt badge-eidet a <a href="#profil">Profil</a> oldalon állíthatod be.</p>
+        <h2>Hős testreszabása</h2>
+        <div class="hero-custom">
+          <div class="hero-figure" id="skin-preview">${Hero.svg(Hero.compute().stage, 'ready')}</div>
+          <div class="hero-custom-fields">
+            <label class="setting-row">
+              <span><strong>Név</strong><span class="muted small">Így szólít meg a Ma oldalon.</span></span>
+              <input type="text" id="s-hero" maxlength="20" placeholder="Hős" value="${esc(s.heroName || '')}">
+            </label>
+            <div class="setting-row">
+              <span><strong>Nem</strong></span>
+              <div class="gender-toggle" role="radiogroup" aria-label="A hős neme">
+                ${Hero.GENDERS.map(gd => `
+                  <button type="button" class="gender-btn" role="radio" data-action="set-gender" data-gender="${gd.id}"
+                    aria-checked="${Hero.gender() === gd.id}" aria-label="${gd.name}" title="${gd.name}">${gd.symbol}</button>`).join('')}
+              </div>
+            </div>
+            <div class="setting-row skin-row">
+              <span><strong>Bőrszín</strong></span>
+              <div class="skin-swatches" role="radiogroup" aria-label="Bőrszín">
+                ${Hero.SKINS.map(sk => `
+                  <button type="button" class="skin-swatch" role="radio" data-action="set-skin" data-skin="${sk.id}"
+                    aria-checked="${Hero.skinId() === sk.id}" aria-label="${sk.name}" title="${sk.name}" style="--skin:${sk.color}"></button>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="muted small">A kiemelt badge-eidet a <a href="#profil">Profil</a> oldalon választhatod ki.</p>
       </div>
 
       <div class="card settings">
@@ -830,6 +819,11 @@
       s.lastNotified = null;
       Store.save();
       toast(`Esti check-in: ${s.reminderTime}`);
+    });
+    $('#s-hero').addEventListener('change', e => {
+      s.heroName = e.target.value.trim();
+      Store.save();
+      toast(`A hősöd neve: ${Hero.name()}`);
     });
     $('#s-goal').addEventListener('change', e => {
       s.goal = e.target.value || null;

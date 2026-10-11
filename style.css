@@ -508,6 +508,7 @@ main {
 .hero-card .hero-figure { display: block; }
 
 .section-sub { margin: -6px 0 12px; }
+.profile-custom-link { margin: -4px 0 0; text-align: center; }
 .section-title.row-between { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .section-title.row-between h2 { margin: 0; }
 
