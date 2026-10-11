@@ -968,17 +968,19 @@ dialog h2 { font-size: 20px; margin-bottom: 16px; }
 .podium-meta { font-size: 0.72rem; color: var(--muted); text-align: center; }
 .podium-xp { font-size: 0.78rem; font-weight: 700; color: var(--red-hi); }
 
-.ladder { margin-top: 16px; border-top: 1px solid var(--border); }
+.ladder { margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
 .ladder-row {
   display: grid;
   grid-template-columns: 2.6em minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
-  padding: 9px 6px;
-  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  background: #111114;
+  border: 1px solid var(--border);
+  border-radius: 14px;
 }
-.ladder-row.is-me { background: rgba(225, 29, 46, 0.12); border-radius: 10px; border-bottom-color: transparent; }
-.ladder-rank { font-weight: 800; color: var(--muted); text-align: right; }
+.ladder-row.is-me { background: rgba(225, 29, 46, 0.12); border-color: var(--red); }
+.ladder-rank { font-size: 1.05rem; font-weight: 800; color: var(--red-hi); text-align: right; }
 .ladder-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ladder-stage { margin-left: 8px; font-size: 0.75rem; font-weight: 400; color: var(--muted); }
 .ladder-lv { font-size: 0.8rem; color: var(--muted); }
@@ -994,7 +996,7 @@ dialog h2 { font-size: 20px; margin-bottom: 16px; }
 .rank-link { margin-left: auto; font-size: 0.85rem; }
 
 @media (max-width: 420px) {
-  .ladder-row { grid-template-columns: 2.2em minmax(0, 1fr) auto; gap: 8px; }
+  .ladder-row { grid-template-columns: 2.2em minmax(0, 1fr) auto; gap: 8px; padding: 10px 12px; }
   .ladder-lv { display: none; }
   .ladder-stage { display: block; margin-left: 0; }
   .podium-bubble { padding: 5px 10px; font-size: 0.74rem; }

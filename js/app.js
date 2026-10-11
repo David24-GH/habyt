@@ -770,7 +770,7 @@
     el.innerHTML = `
       <header class="view-head"><div><span class="eyebrow">Hősöd és eredményeid</span><h1>Profil</h1></div></header>
 
-      ${Store.state.habits.length ? renderHeroPanel() : ''}
+      ${renderHeroPanel()}
       ${Sync.enabled ? `<div class="card rank-card" id="my-rank">${rankBody()}</div>` : ''}
       <p class="muted small profile-custom-link">A hősöd nevét, nemét és bőrszínét a <a href="#beallitasok">Beállításokban</a> szabhatod testre.</p>
 
