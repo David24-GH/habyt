@@ -98,7 +98,7 @@ const Sync = (() => {
   const table = () => `/rest/v1/habyt_state`;
   const mine = () => `?user_id=eq.${encodeURIComponent(session.user.id)}`;
 
-  // Nyilvános összesítő a (későbbi) ranglétrához: csak a hős neve, szintje, rangja és XP-je.
+  // Nyilvános összesítő a ranglétrához: a hős neve, kinézete, szintje, rangja és XP-je (email nincs benne).
   let published = '';
   async function publishProfile() {
     if (typeof Hero === 'undefined') return;
@@ -109,6 +109,8 @@ const Sync = (() => {
       level: h.level,
       xp: Math.round(h.xp),
       stage: h.stageName,
+      gender: Hero.gender(),
+      skin: Hero.skinId(),
       visible: !Store.state.settings.leaderboardHidden,
     };
     const sig = JSON.stringify(row);
@@ -119,6 +121,19 @@ const Sync = (() => {
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     });
     published = sig;
+  }
+
+  // A legjobb 100 látható hős XP szerint (egyenlőségnél az előbb odaérő áll elöl).
+  async function leaderboard() {
+    await publishProfile();
+    return data('/rest/v1/habyt_profiles?select=user_id,hero_name,level,xp,stage,gender,skin&visible=is.true&order=xp.desc,updated_at.asc&limit=100');
+  }
+
+  // Saját helyezés (a 100. utáni is); null, ha még nincs sor a szerveren.
+  async function myRank() {
+    await publishProfile();
+    const rows = await data('/rest/v1/rpc/habyt_my_rank', { method: 'POST', body: {} });
+    return (rows && rows[0]) || null;
   }
 
   async function syncNow() {
@@ -252,6 +267,8 @@ const Sync = (() => {
     signUp,
     signOut,
     consumeRedirect,
+    leaderboard,
+    myRank,
     get user() { return session ? session.user : null; },
     get status() { return status; },
     get lastSync() { return lastSync; },

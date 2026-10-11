@@ -115,7 +115,7 @@ const Hero = (() => {
     return SKINS.some(sk => sk.id === id) ? id : DEFAULT_SKIN;
   }
 
-  const skinColor = () => SKINS.find(sk => sk.id === skinId()).color;
+  const skinColor = (id = skinId()) => (SKINS.find(sk => sk.id === id) || SKINS.find(sk => sk.id === DEFAULT_SKIN)).color;
   const HAIR = '#2a1a14';
   const BODY = ['#8a6f55', '#6b4423', '#8b8f99', '#b9bec8', '#2a2a30', '#1c1c22'];
   const TRIM = [null, null, null, '#e11d2e', '#e11d2e', '#f5b941'];
@@ -188,13 +188,14 @@ const Hero = (() => {
     return hair + '<path d="M42 30l-2-14 9 7 6-11 5 10 5-10 6 11 9-7-2 14z" fill="#f5b941" stroke="#c98a1a" stroke-width="1.2" stroke-linejoin="round"/><circle cx="60" cy="24" r="2.6" fill="#e11d2e"/>';
   }
 
-  function svg(stage, m = 'ready', cls = '') {
+  // look: más hős kinézete (pl. a ranglétrán): { gender: 'm'|'f', skin: id }. Alapból a saját beállítás.
+  function svg(stage, m = 'ready', cls = '', look = {}) {
     const id = ++uid;
     const s = Math.max(0, Math.min(5, stage));
     const body = BODY[s];
     const trim = TRIM[s];
-    const skin = skinColor();
-    const g = gender();
+    const skin = skinColor(look.skin || skinId());
+    const g = look.gender ? (look.gender === 'f' ? 'f' : 'm') : gender();
     const sparkles = m === 'proud'
       ? '<g class="hero-sparkle" fill="#ffd166"><path d="M14 40l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M104 28l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z"/><path d="M106 70l1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2z"/></g>'
       : '';

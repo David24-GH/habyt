@@ -38,7 +38,13 @@ create table if not exists public.habyt_profiles (
   updated_at timestamptz not null default now()
 );
 
+-- A dobogón a hős a saját kinézetével áll (nem és bőrszín).
+alter table public.habyt_profiles
+  add column if not exists gender text not null default 'm' check (gender in ('m', 'f')),
+  add column if not exists skin text not null default 'bezs' check (char_length(skin) <= 20);
+
 create index if not exists habyt_profiles_rank on public.habyt_profiles (xp desc) where visible;
+create index if not exists habyt_profiles_rank_order on public.habyt_profiles (xp desc, updated_at asc) where visible;
 
 alter table public.habyt_profiles enable row level security;
 
@@ -56,3 +62,21 @@ create policy "habyt sajat profil modositasa" on public.habyt_profiles
 
 revoke all on public.habyt_profiles from anon;
 grant select, insert, update on public.habyt_profiles to authenticated;
+-- Saját helyezés (a 100. hely utáni is): hányan vannak előtted + 1, és hány látható hős van összesen.
+create or replace function public.habyt_my_rank()
+returns table (rank bigint, total bigint, visible boolean)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select
+    (select count(*) from public.habyt_profiles p where p.visible and p.xp > me.xp) + 1,
+    (select count(*) from public.habyt_profiles p where p.visible),
+    me.visible
+  from public.habyt_profiles me
+  where me.user_id = (select auth.uid());
+$$;
+
+revoke all on function public.habyt_my_rank() from public, anon;
+grant execute on function public.habyt_my_rank() to authenticated;

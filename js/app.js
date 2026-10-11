@@ -500,7 +500,9 @@
     if (!habits.length) {
       el.innerHTML = `
         <header class="view-head"><div><span class="eyebrow">Statisztika</span><h1>Még nincs adat</h1></div></header>
-        <div class="empty">Adj hozzá szokásokat, és itt látod majd a naptárat és a sorozataidat.</div>`;
+        <div class="empty">Adj hozzá szokásokat, és itt látod majd a naptárat és a sorozataidat.</div>
+        ${renderLeaderboard()}`;
+      loadBoard();
       return;
     }
     const active = Store.activeHabits();
@@ -515,6 +517,8 @@
         <div class="tile"><span class="tile-label">Elmúlt 30 nap</span><span class="tile-value">${pct(Stats.overallRate(30))}</span></div>
         <div class="tile"><span class="tile-label">Összes pipa</span><span class="tile-value">${Stats.totalChecks()}</span></div>
       </div>
+
+      ${renderLeaderboard()}
 
       <div class="card">
         <div class="card-head">
@@ -548,6 +552,7 @@
     `;
     const sc = $('#heatmap-scroll');
     sc.scrollLeft = sc.scrollWidth;
+    loadBoard();
   }
 
   function renderHeatmap() {
@@ -623,6 +628,108 @@
       <p class="muted small cal-foot">${due ? `Ebben a hónapban: <strong>${done}/${due}</strong> (${pct(done / due)}) · ` : ''}Kattints egy napra a pipa utólagos módosításához.</p>`;
   }
 
+  // ---------- Ranglétra ----------
+
+  // A szerverről jött adatot röviden gyorsítótárazzuk, hogy ne kérjük le minden újrarajzolásnál.
+  const BOARD_TTL = 60000;
+  const board = { rows: null, at: 0, loading: false, error: '' };
+  const myRank = { info: null, at: 0, loading: false, error: '' };
+  const fmtXp = n => Number(n).toLocaleString('hu-HU');
+  const stageIndex = name => Math.max(0, Hero.STAGES.findIndex(s => s.name === name));
+  const boardReady = () => Sync.enabled && Sync.user;
+
+  function fetchCached(cache, load, after, force) {
+    if (!boardReady() || cache.loading) return;
+    if (!force && cache.at && Date.now() - cache.at < BOARD_TTL) return;
+    cache.loading = true;
+    load()
+      .then(res => { cache.error = ''; after(res); })
+      .catch(err => { cache.error = err instanceof TypeError || !navigator.onLine ? 'Nincs kapcsolat a szerverrel.' : 'Nem sikerült betölteni.'; })
+      .finally(() => {
+        cache.at = Date.now();
+        cache.loading = false;
+        const box = $('#leaderboard');
+        if (box) box.innerHTML = leaderboardBody();
+        const rk = $('#my-rank');
+        if (rk) rk.innerHTML = rankBody();
+      });
+  }
+
+  const loadBoard = force => fetchCached(board, Sync.leaderboard, rows => { board.rows = rows || []; }, force);
+  const loadRank = force => fetchCached(myRank, Sync.myRank, info => { myRank.info = info; }, force);
+
+  function resetBoard() {
+    board.rows = null; board.at = 0; board.error = '';
+    myRank.info = null; myRank.at = 0; myRank.error = '';
+  }
+
+  // Holtversenynél ugyanaz a helyezés jár (1, 2, 2, 4 …).
+  function withRanks(rows) {
+    return rows.map((r, i) => ({ ...r, rank: i && r.xp === rows[i - 1].xp ? null : i + 1 }))
+      .map((r, i, a) => { if (r.rank === null) r.rank = a[i - 1].rank; return r; });
+  }
+
+  function renderLeaderboard() {
+    if (!Sync.enabled) return '';
+    return `
+      <div class="card leaderboard-card">
+        <div class="card-head">
+          <h2>🏆 Ranglétra</h2>
+          ${Sync.user ? '<button class="icon-btn" data-action="board-refresh" aria-label="Ranglétra frissítése" title="Frissítés">↻</button>' : ''}
+        </div>
+        <div id="leaderboard">${leaderboardBody()}</div>
+      </div>`;
+  }
+
+  function leaderboardBody() {
+    if (!Sync.user) return '<p class="muted">Jelentkezz be a <a href="#beallitasok">Beállításokban</a>, és mérd össze a hősödet a többiekkel!</p>';
+    if (!board.rows) return board.error ? `<p class="muted">${board.error}</p>` : '<p class="muted">Ranglétra betöltése…</p>';
+    if (!board.rows.length) return '<p class="muted">Még senki sincs a ranglétrán. Légy te az első!</p>';
+
+    const me = Sync.user.id;
+    const rows = withRanks(board.rows);
+    const top = rows.slice(0, 3);
+    const rest = rows.slice(3);
+    const spot = (r, place) => !r ? `<div class="podium-spot place-${place} is-empty"><div class="podium-block"><span class="podium-rank">${place}</span></div></div>` : `
+      <div class="podium-spot place-${place} ${r.user_id === me ? 'is-me' : ''}">
+        <span class="podium-bubble"><span>${esc(r.hero_name)}</span></span>
+        <div class="podium-hero">${Hero.svg(stageIndex(r.stage), place === 1 ? 'proud' : 'ready', '', { gender: r.gender, skin: r.skin })}</div>
+        <div class="podium-block">
+          <span class="podium-rank">${r.rank}</span>
+          <span class="podium-meta">Lv ${r.level} · ${esc(r.stage)}</span>
+          <span class="podium-xp">${fmtXp(r.xp)} XP</span>
+        </div>
+      </div>`;
+
+    return `
+      <div class="podium">${spot(top[1], 2)}${spot(top[0], 1)}${spot(top[2], 3)}</div>
+      ${rest.length ? `
+        <div class="ladder" role="list">
+          ${rest.map(r => `
+            <div class="ladder-row ${r.user_id === me ? 'is-me' : ''}" role="listitem">
+              <span class="ladder-rank">${r.rank}.</span>
+              <span class="ladder-name">${esc(r.hero_name)}${r.user_id === me ? ' <span class="you-tag">Te</span>' : ''}<span class="ladder-stage">${esc(r.stage)}</span></span>
+              <span class="ladder-lv">Lv ${r.level}</span>
+              <span class="ladder-xp">${fmtXp(r.xp)} XP</span>
+            </div>`).join('')}
+        </div>` : ''}
+      ${Store.state.settings.leaderboardHidden ? '<p class="muted small ladder-note">A hősöd most rejtve van. A <a href="#beallitasok">Beállításokban</a> kapcsolhatod be.</p>' : ''}
+      <p class="muted small ladder-note">Az első 100 hős látszik. A saját helyezésedet a <a href="#profil">Profilodon</a> találod.</p>`;
+  }
+
+  function rankBody() {
+    if (!Sync.user) return '<p class="muted small">🏆 <a href="#beallitasok">Jelentkezz be</a>, és megtudod, hányadik vagy a ranglétrán.</p>';
+    if (Store.state.settings.leaderboardHidden) return '<p class="muted small">🏆 Rejtve vagy a ranglétrán. A <a href="#beallitasok">Beállításokban</a> kapcsolhatod be.</p>';
+    if (!myRank.info) return `<p class="muted small">🏆 ${myRank.error || 'Helyezés betöltése…'}</p>`;
+    const { rank, total } = myRank.info;
+    return `
+      <div class="rank-line">
+        <span class="rank-place">🏆 <strong>${rank}.</strong> helyezés</span>
+        <span class="muted small">${fmtXp(total)} hős közül</span>
+        <a class="rank-link" href="#statisztika">Ranglétra →</a>
+      </div>`;
+  }
+
   // ---------- Profil ----------
 
   function fmtDate(k) {
@@ -664,6 +771,7 @@
       <header class="view-head"><div><span class="eyebrow">Hősöd és eredményeid</span><h1>Profil</h1></div></header>
 
       ${Store.state.habits.length ? renderHeroPanel() : ''}
+      ${Sync.enabled ? `<div class="card rank-card" id="my-rank">${rankBody()}</div>` : ''}
       <p class="muted small profile-custom-link">A hősöd nevét, nemét és bőrszínét a <a href="#beallitasok">Beállításokban</a> szabhatod testre.</p>
 
       <h2 class="section-title">⚔️ Kihívások</h2>
@@ -700,6 +808,8 @@
         }).join('')}
       </div>
     `;
+
+    loadRank();
 
     // Az itt megmutatott új badge-ek innentől "látottak".
     if (fresh.size) { Badges.markSeen([...fresh]); updateNavDot(); }
@@ -1042,6 +1152,7 @@
     'feature-badge'(b) {
       if (toggleFeatured(b.dataset.id)) rerenderInPlace();
     },
+    'board-refresh'() { loadBoard(true); },
     'cat-filter'(b) { ui.catFilter = b.dataset.cat; render(); },
     'cal-habit'(b) { ui.calHabit = b.dataset.id; render(); },
     'cal-prev'() { const [y, m] = ui.calMonth.split('-').map(Number); ui.calMonth = D.key(new Date(y, m - 2, 1)).slice(0, 7); render(); },
@@ -1150,7 +1261,9 @@
 
   // Szinkron: más eszközről érkezett változásnál újrarajzolás.
   Sync.on('data', () => render());
-  Sync.on('auth', () => render());
+  Sync.on('auth', () => { resetBoard(); render(); });
+  // Saját XP vagy beállítás változott: a következő megnyitáskor frissüljön a ranglétra.
+  Store.onChange(() => { board.at = 0; myRank.at = 0; });
   Sync.on('status', updateSyncStatus);
 
   const redirect = Sync.consumeRedirect();
