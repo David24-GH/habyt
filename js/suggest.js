@@ -27,6 +27,12 @@ const Suggest = {
           score += 3;
           reason = reason || `A célodhoz illik: ${GOALS[goal].label}`;
         }
+        // A kezdő kérdőív válaszai (ha kitöltötte).
+        const qb = typeof Quiz !== 'undefined' ? Quiz.bonus(c) : null;
+        if (qb) {
+          score += qb.score;
+          reason = reason || qb.reason;
+        }
         if (active.length >= 3 && !cats.has(c.cat)) {
           score += 1;
           reason = reason || `Új terület: ${CATEGORIES[c.cat].label}`;

@@ -1,5 +1,5 @@
 // Offline működés: hálózat először (így mindig a legfrissebb verzió jön), ha nincs net, a gyorsítótárból.
-const CACHE = 'habyt-v6';
+const CACHE = 'habyt-v7';
 const ASSETS = [
   './',
   'index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   'js/storage.js',
   'js/sync.js',
   'js/catalog.js',
+  'js/quiz.js',
   'js/suggest.js',
   'js/stats.js',
   'js/hero.js',

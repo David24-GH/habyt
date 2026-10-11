@@ -304,8 +304,16 @@
           <p class="hero-bubble">Szia! Én vagyok a hősöd. Minden teljesített szokásod erősebbé tesz: szintet lépek, és egyszer talán Legenda leszek! ⚔️</p>
         </div>
       </div>
+      <div class="card quiz-cta">
+        <div class="quiz-cta-icon" aria-hidden="true">🧭</div>
+        <div>
+          <strong>Nem tudod, hol kezdd?</strong>
+          <p class="muted small">Válaszolj 7 gyors kérdésre (kb. 2–3 perc), és összerakom a neked való kezdő szokásokat.</p>
+        </div>
+        <button class="btn btn-primary" data-action="open-quiz">${s.settings.quiz ? 'Újra kitöltöm' : 'Kitöltöm'}</button>
+      </div>
       <div class="card hero">
-        <p>Válassz 1–3 szokást az induláshoz. Minden este ${esc(s.settings.reminderTime)}-kor itt pipálhatod ki, mit teljesítettél, a sorozataidat pedig a Statisztikában követheted.</p>
+        <p>Vagy válassz magad 1–3 szokást az induláshoz. Minden este ${esc(s.settings.reminderTime)}-kor itt pipálhatod ki, mit teljesítettél, a sorozataidat pedig a Statisztikában követheted.</p>
       </div>
       ${renderGoalCard()}
       <h2 class="section-title">Javasolt kezdésnek</h2>
@@ -348,6 +356,149 @@
         </div>`).join('')}
     </div>`;
   }
+
+  // ---------- Kezdő kérdőív ----------
+
+  const quizDlg = $('#quiz-dialog');
+  const quiz = { step: 0, answers: {}, result: null, chosen: new Set() };
+
+  function openQuiz() {
+    quiz.step = 0;
+    quiz.answers = {};
+    quiz.result = null;
+    renderQuiz();
+    if (!quizDlg.open) quizDlg.showModal();
+  }
+
+  // Regisztráció után: ha még nincs szokása és nem töltötte ki, rögtön jön a kérdőív.
+  function maybeStartQuiz() {
+    if (!Store.state.settings.quizDone && !Store.activeHabits().length) openQuiz();
+  }
+
+  function renderQuiz() {
+    const qs = Quiz.QUESTIONS;
+    const body = $('#quiz-body');
+
+    if (quiz.step < qs.length) {
+      const q = qs[quiz.step];
+      const val = quiz.answers[q.id];
+      const on = id => (q.multi ? (val || []).includes(id) : val === id);
+      const ok = q.multi ? (val || []).length > 0 : !!val;
+      body.innerHTML = `
+        <div class="quiz-top">
+          <span class="eyebrow">Kezdő kérdőív · ${quiz.step + 1} / ${qs.length}</span>
+          <button type="button" class="link-btn" data-quiz="skip">Kihagyom</button>
+        </div>
+        <div class="xp-bar thin quiz-progress"><span style="width:${Math.round((quiz.step / qs.length) * 100)}%"></span></div>
+        <h2>${q.title}</h2>
+        ${q.hint ? `<p class="muted small quiz-hint">${q.hint}</p>` : ''}
+        <div class="quiz-options ${q.options.length > 4 ? 'is-grid' : ''}" role="group" aria-label="${q.title}">
+          ${q.options.map(o => `
+            <button type="button" class="quiz-opt" data-quiz="pick" data-id="${o.id}" aria-pressed="${on(o.id)}">
+              <span class="quiz-icon" aria-hidden="true">${o.icon}</span>
+              <span class="quiz-label">${o.label}${o.desc ? `<small>${o.desc}</small>` : ''}</span>
+            </button>`).join('')}
+        </div>
+        <div class="quiz-nav">
+          <button type="button" class="btn btn-ghost" data-quiz="back" ${quiz.step ? '' : 'disabled'}>Vissza</button>
+          <button type="button" class="btn btn-primary" data-quiz="next" ${ok ? '' : 'disabled'}>${quiz.step === qs.length - 1 ? 'Mutasd az ajánlást' : 'Tovább'}</button>
+        </div>`;
+      return;
+    }
+
+    // Eredmény: az ajánlott csomag előre kijelölve, alatta további ötletek.
+    if (!quiz.result) {
+      const taken = new Set(Store.activeHabits().map(h => h.catalogId).filter(Boolean));
+      quiz.result = Quiz.recommend(quiz.answers, taken);
+      quiz.chosen = new Set(quiz.result.picks.map(r => r.item.id));
+    }
+    const { picks, extra, days } = quiz.result;
+    const row = r => `
+      <button type="button" class="quiz-pick" data-quiz="choose" data-id="${r.item.id}" aria-pressed="${quiz.chosen.has(r.item.id)}">
+        <span class="habit-icon">${r.item.icon}</span>
+        <span class="quiz-pick-body"><strong>${esc(r.item.name)}</strong><small>${esc(r.reason)}</small></span>
+        <span class="check">${checkSvg}</span>
+      </button>`;
+    body.innerHTML = `
+      <div class="quiz-top"><span class="eyebrow">Kész! · A kezdő csomagod</span></div>
+      <div class="xp-bar thin quiz-progress"><span style="width:100%"></span></div>
+      <div class="quiz-result-head">
+        <div class="hero-figure">${Hero.svg(0, 'proud')}</div>
+        <p class="hero-bubble">A válaszaid alapján ezekkel érdemes kezdenünk! Kevesebb szokással könnyebb kitartani, később bármikor bővítheted. Koppints egy szokásra a ki- vagy bekapcsoláshoz.</p>
+      </div>
+      <div class="quiz-picks">${picks.map(row).join('')}</div>
+      ${extra.length ? `<p class="muted small quiz-sub">További ötletek</p><div class="quiz-picks">${extra.map(row).join('')}</div>` : ''}
+      <p class="muted small">Gyakoriság: <strong>${daysLabel(days)}</strong>. Minden este ${esc(Store.state.settings.reminderTime)}-kor itt pipálhatod ki őket.</p>
+      <div class="quiz-nav">
+        <button type="button" class="btn btn-ghost" data-quiz="back">Vissza</button>
+        <button type="button" class="btn btn-primary" data-quiz="finish" ${quiz.chosen.size ? '' : 'disabled'}>Hozzáadom (${quiz.chosen.size})</button>
+      </div>`;
+  }
+
+  function finishQuiz() {
+    const { days } = quiz.result;
+    const ids = [...quiz.result.picks, ...quiz.result.extra].map(r => r.item.id).filter(id => quiz.chosen.has(id));
+    for (const id of ids) {
+      const c = CATALOG_BY_ID[id];
+      const old = Store.state.habits.find(h => h.catalogId === id && h.archivedKey);
+      if (old) Store.updateHabit(old.id, { archivedKey: null, days });
+      else Store.addHabit({ name: c.name, icon: c.icon, category: c.cat, days, catalogId: c.id });
+    }
+    Store.setShared({ quiz: quiz.answers, quizDone: true, goal: quiz.answers.goal || Store.state.settings.goal, onboarded: true });
+    quizDlg.close();
+    location.hash = '#ma';
+    render();
+    celebrate(`${ids.length} szokás hozzáadva. Hajrá, ${Hero.name()}! ⚔️`);
+  }
+
+  quizDlg.addEventListener('click', e => {
+    const b = e.target.closest('[data-quiz]');
+    if (!b || b.disabled) return;
+    const q = Quiz.QUESTIONS[quiz.step];
+    switch (b.dataset.quiz) {
+      case 'pick': {
+        if (q.multi) {
+          const list = quiz.answers[q.id] || [];
+          const id = b.dataset.id;
+          if (list.includes(id)) quiz.answers[q.id] = list.filter(x => x !== id);
+          else if (list.length >= q.multi) {
+            // A kérdőív a toast fölött van, ezért a figyelmeztetés a kérdés alatt villan fel.
+            const hint = $('#quiz-body .quiz-hint');
+            if (hint) { hint.classList.remove('is-warn'); void hint.offsetWidth; hint.classList.add('is-warn'); }
+            return;
+          }
+          else quiz.answers[q.id] = [...list, id];
+          renderQuiz();
+        } else {
+          // Egyválasztós kérdésnél rögtön továbblép.
+          quiz.answers[q.id] = b.dataset.id;
+          quiz.result = null;
+          renderQuiz();
+          setTimeout(() => { if (quizDlg.open && Quiz.QUESTIONS[quiz.step] === q) { quiz.step++; renderQuiz(); } }, 260);
+        }
+        quiz.result = null;
+        break;
+      }
+      case 'next': quiz.step++; renderQuiz(); break;
+      case 'back': quiz.step = Math.max(0, quiz.step - 1); renderQuiz(); break;
+      case 'choose': {
+        const id = b.dataset.id;
+        if (quiz.chosen.has(id)) quiz.chosen.delete(id); else quiz.chosen.add(id);
+        renderQuiz();
+        break;
+      }
+      case 'finish': finishQuiz(); break;
+      case 'skip':
+        quizDlg.close();
+        break;
+    }
+  });
+
+  // Bezárás (Kihagyom vagy Esc): többé nem ugrik fel magától, de a Ma és a Szokások oldalról elindítható.
+  quizDlg.addEventListener('close', () => {
+    if (!Store.state.settings.quizDone) Store.setShared({ quizDone: true });
+    render();
+  });
 
   function renderHabits() {
     const el = $('#view-szokasok');
@@ -397,7 +548,10 @@
           </div>
         </details>` : ''}
 
-      <h2 class="section-title">✨ Javasolt neked</h2>
+      <div class="section-title row-between">
+        <h2>✨ Javasolt neked</h2>
+        <button class="link-btn" data-action="open-quiz">🧭 ${Store.state.settings.quiz ? 'Kérdőív újra' : 'Kérdőív kitöltése'}</button>
+      </div>
       ${renderSuggestions(6)}
 
       <h2 class="section-title">Katalógus</h2>
@@ -1018,7 +1172,7 @@
             if (!(await Sync.nameAvailable(name))) return fail(`A(z) „${name}” hősnév már foglalt. Válassz másikat!`);
             const signedIn = await Sync.signUp(email, password, name);
             Store.setShared({ heroName: name });
-            if (signedIn) toast('Fiók létrehozva, szinkronizálva. ✓');
+            if (signedIn) { toast('Fiók létrehozva, szinkronizálva. ✓'); maybeStartQuiz(); }
             else info.textContent = `Küldtünk egy megerősítő emailt ide: ${email}. Kattints a benne lévő linkre, és utána már be is leszel jelentkezve.`;
           }
         } catch (ex) {
@@ -1218,6 +1372,7 @@
       if (toggleFeatured(b.dataset.id)) rerenderInPlace();
     },
     'board-refresh'() { loadBoard(true); },
+    'open-quiz'() { openQuiz(); },
     'auth-mode'(b) {
       const em = $('#sync-email');
       if (em) ui.authEmail = em.value.trim();
@@ -1345,7 +1500,7 @@
     redirect.done
       .then(() => {
         if (redirect.recovery) { $('#password-dialog').showModal(); $('#pw-new').focus(); }
-        else toast('Email megerősítve, bejelentkezve. ✓');
+        else { toast('Email megerősítve, bejelentkezve. ✓'); maybeStartQuiz(); }
       })
       .catch(() => toast('A bejelentkezés nem sikerült, próbáld újra.'));
   }
