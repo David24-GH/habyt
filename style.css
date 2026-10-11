@@ -797,6 +797,11 @@ input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 .sync-form .btn-row { margin-top: 2px !important; }
 .sync-info { margin: 0 !important; color: #86efac; font-size: 14px; }
 .sync-info:empty, .sync-form .form-error:empty { display: none; }
+.sync-form .btn-row { align-items: center; gap: 14px; }
+.sync-form > p.muted { margin: 0; }
+.auth-switch { margin: 4px 0 0 !important; }
+.auth-switch .link-btn { font-size: inherit; }
+.sync-form input:disabled { opacity: 0.6; }
 
 @keyframes pulse { 50% { opacity: 0.35; } }
 

@@ -20,6 +20,8 @@
     calMonth: D.today().slice(0, 7),
     editId: null,
     preset: null,
+    authMode: 'signin', // signin | signup | forgot
+    authEmail: '',
   };
   let installPrompt = null;
 
@@ -872,7 +874,7 @@
           <div class="hero-figure" id="skin-preview">${Hero.svg(Hero.compute().stage, 'ready')}</div>
           <div class="hero-custom-fields">
             <label class="setting-row">
-              <span><strong>Név</strong><span class="muted small">Így szólít meg a Ma oldalon.</span></span>
+              <span><strong>Név</strong><span class="muted small">${Sync.user ? 'Egyedi név: így látnak a ranglétrán is.' : 'Így szólít meg a Ma oldalon.'}</span></span>
               <input type="text" id="s-hero" maxlength="20" placeholder="Hős" value="${esc(s.heroName || '')}">
             </label>
             <div class="setting-row">
@@ -935,9 +937,28 @@
       Store.setShared({ reminderTime: e.target.value });
       toast(`Esti check-in: ${e.target.value}`);
     });
-    $('#s-hero').addEventListener('change', e => {
-      Store.setShared({ heroName: e.target.value.trim() });
-      toast(`A hősöd neve: ${Hero.name()}`);
+    $('#s-hero').addEventListener('change', async e => {
+      const input = e.target;
+      const name = input.value.trim();
+      const prev = Store.state.settings.heroName || '';
+      if (!Sync.user) {
+        Store.setShared({ heroName: name });
+        toast(`A hősöd neve: ${Hero.name()}`);
+        return;
+      }
+      // Bejelentkezve a név egyedi: előbb a szerveren foglaljuk le.
+      if (name.length < 2) { input.value = prev; toast('A hősöd neve legalább 2 karakter legyen.'); return; }
+      input.disabled = true;
+      try {
+        await Sync.renameHero(name);
+        Store.setShared({ heroName: name });
+        toast(`A hősöd neve: ${Hero.name()}`);
+      } catch (err) {
+        input.value = prev;
+        toast(err.code === 'taken' ? `A(z) „${name}” hősnév már foglalt. Válassz másikat!` : 'Nem sikerült menteni a nevet. Van internet?');
+      } finally {
+        input.disabled = false;
+      }
     });
     $('#s-goal').addEventListener('change', e => {
       Store.setShared({ goal: e.target.value || null, onboarded: true });
@@ -959,29 +980,51 @@
 
     const form = $('#sync-form');
     if (form) {
+      const pass2 = $('#sync-pass2');
+      // Regisztrációnál már gépelés közben jelezzük, ha a két jelszó eltér.
+      if (pass2) pass2.addEventListener('input', () => {
+        $('#sync-error').textContent = pass2.value && pass2.value !== $('#sync-pass').value.slice(0, pass2.value.length) ? 'A két jelszó nem egyezik.' : '';
+      });
       form.addEventListener('submit', async e => {
         e.preventDefault();
-        const mode = e.submitter && e.submitter.dataset.mode === 'signup' ? 'signup' : 'signin';
+        const mode = form.dataset.mode;
         const email = $('#sync-email').value.trim();
-        const password = $('#sync-pass').value;
         const err = $('#sync-error');
+        const info = $('#sync-info');
+        const fail = msg => { err.textContent = msg; };
         err.textContent = '';
-        if (mode === 'signup' && password.length < 6) { err.textContent = 'A jelszó legalább 6 karakter legyen.'; return; }
-        form.querySelectorAll('button').forEach(b => { b.disabled = true; });
+        info.textContent = '';
+        ui.authEmail = email;
+        if (!/^\S+@\S+\.\S+$/.test(email)) return fail('Adj meg egy érvényes email-címet.');
+
+        const password = mode === 'forgot' ? '' : $('#sync-pass').value;
+        const name = mode === 'signup' ? $('#sync-name').value.trim() : '';
+        if (mode === 'signin' && !password) return fail('Add meg a jelszavad.');
+        if (mode === 'signup') {
+          if (name.length < 2 || name.length > 20) return fail('A hősöd neve 2–20 karakter legyen.');
+          if (password.length < 6) return fail('A jelszó legalább 6 karakter legyen.');
+          if (password !== $('#sync-pass2').value) return fail('A két jelszó nem egyezik. Írd be újra mindkettőt.');
+        }
+
+        form.querySelectorAll('button, input').forEach(b => { b.disabled = true; });
         try {
           if (mode === 'signin') {
             await Sync.signIn(email, password);
             toast('Bejelentkezve, szinkronizálva. ✓');
-          } else if (await Sync.signUp(email, password)) {
-            toast('Fiók létrehozva, szinkronizálva. ✓');
+          } else if (mode === 'forgot') {
+            await Sync.requestReset(email);
+            info.textContent = `Ha van fiók ezzel a címmel (${email}), küldtünk rá egy levelet. A benne lévő linkkel új jelszót adhatsz meg.`;
           } else {
-            err.textContent = '';
-            $('#sync-info').textContent = `Küldtünk egy megerősítő emailt ide: ${email}. Kattints a benne lévő linkre, és utána már be is leszel jelentkezve.`;
+            if (!(await Sync.nameAvailable(name))) return fail(`A(z) „${name}” hősnév már foglalt. Válassz másikat!`);
+            const signedIn = await Sync.signUp(email, password, name);
+            Store.setShared({ heroName: name });
+            if (signedIn) toast('Fiók létrehozva, szinkronizálva. ✓');
+            else info.textContent = `Küldtünk egy megerősítő emailt ide: ${email}. Kattints a benne lévő linkre, és utána már be is leszel jelentkezve.`;
           }
         } catch (ex) {
-          err.textContent = authMessage(ex);
+          fail(authMessage(ex));
         } finally {
-          form.querySelectorAll('button').forEach(b => { b.disabled = false; });
+          if (form.isConnected) form.querySelectorAll('button, input').forEach(b => { b.disabled = false; });
         }
       });
     }
@@ -994,6 +1037,8 @@
     if (m.includes('invalid login')) return 'Hibás email vagy jelszó.';
     if (m.includes('not confirmed')) return 'Előbb erősítsd meg az emailedet a kapott levélben lévő linkkel.';
     if (m.includes('already registered') || m.includes('already exists')) return 'Ezzel az emaillel már van fiók. Jelentkezz be.';
+    if (m.includes('database error saving new user')) return 'Ez a hősnév közben foglalt lett. Válassz másikat!';
+    if (m.includes('different from the old')) return 'Az új jelszó nem lehet ugyanaz, mint a régi.';
     if (m.includes('password')) return 'A jelszó túl gyenge (legalább 6 karakter kell).';
     if (m.includes('email') && m.includes('invalid')) return 'Érvénytelen email-cím.';
     if (m.includes('rate limit') || ex.status === 429) return 'Túl sok próbálkozás, várj egy kicsit.';
@@ -1037,20 +1082,40 @@
           </div>
         </div>`;
     }
+    const m = ui.authMode;
+    const ownName = (Store.state.settings.heroName || '').trim();
+    const email = `<input id="sync-email" type="email" placeholder="Email-cím" autocomplete="email" required aria-label="Email-cím" value="${esc(ui.authEmail)}">`;
+    const link = (mode, text) => `<button type="button" class="link-btn" data-action="auth-mode" data-mode="${mode}">${text}</button>`;
+    const forms = {
+      signin: `
+        ${email}
+        <input id="sync-pass" type="password" placeholder="Jelszó" autocomplete="current-password" required aria-label="Jelszó">
+        <p id="sync-error" class="form-error" role="alert"></p>
+        <p id="sync-info" class="sync-info" role="status"></p>
+        <div class="btn-row"><button type="submit" class="btn btn-primary">Bejelentkezés</button>${link('forgot', 'Elfelejtettem a jelszavam')}</div>
+        <p class="muted small auth-switch">Még nincs fiókod? ${link('signup', 'Regisztrálj')}</p>`,
+      signup: `
+        <input id="sync-name" type="text" maxlength="20" placeholder="A hősöd neve (egyedi, pl. Villám)" autocomplete="nickname" required aria-label="A hősöd neve" value="${ownName && ownName !== 'Hős' ? esc(ownName) : ''}">
+        ${email}
+        <input id="sync-pass" type="password" placeholder="Jelszó (legalább 6 karakter)" autocomplete="new-password" required aria-label="Jelszó">
+        <input id="sync-pass2" type="password" placeholder="Jelszó még egyszer" autocomplete="new-password" required aria-label="Jelszó még egyszer">
+        <p id="sync-error" class="form-error" role="alert"></p>
+        <p id="sync-info" class="sync-info" role="status"></p>
+        <div class="btn-row"><button type="submit" class="btn btn-primary">Regisztráció</button></div>
+        <p class="muted small auth-switch">Van már fiókod? ${link('signin', 'Jelentkezz be')}</p>`,
+      forgot: `
+        <p class="muted small">Add meg a fiókod email-címét, és küldünk egy linket, amivel új jelszót adhatsz meg.</p>
+        ${email}
+        <p id="sync-error" class="form-error" role="alert"></p>
+        <p id="sync-info" class="sync-info" role="status"></p>
+        <div class="btn-row"><button type="submit" class="btn btn-primary">Új jelszó kérése</button></div>
+        <p class="muted small auth-switch">${link('signin', '← Vissza a bejelentkezéshez')}</p>`,
+    };
     return `
       <div class="card settings sync-card">
-        <h2>Szinkronizálás</h2>
-        <p class="muted small">Jelentkezz be ugyanazzal a fiókkal a gépen és a telefonon, és a szokásaid, pipáid és a hősöd automatikusan összeszinkronizálódnak. Az eddigi adataid megmaradnak és összefésülődnek.</p>
-        <form id="sync-form" class="sync-form" novalidate>
-          <input id="sync-email" type="email" placeholder="Email-cím" autocomplete="email" required aria-label="Email-cím">
-          <input id="sync-pass" type="password" placeholder="Jelszó" autocomplete="current-password" required aria-label="Jelszó">
-          <p id="sync-error" class="form-error" role="alert"></p>
-          <p id="sync-info" class="sync-info" role="status"></p>
-          <div class="btn-row">
-            <button type="submit" class="btn btn-primary" data-mode="signin">Bejelentkezés</button>
-            <button type="submit" class="btn btn-ghost" data-mode="signup">Új fiók</button>
-          </div>
-        </form>
+        <h2>${{ signin: 'Bejelentkezés', signup: 'Regisztráció', forgot: 'Elfelejtett jelszó' }[m]}</h2>
+        ${m === 'forgot' ? '' : '<p class="muted small">Jelentkezz be ugyanazzal a fiókkal a gépen és a telefonon, és a szokásaid, pipáid és a hősöd automatikusan összeszinkronizálódnak. Így a ranglétrán is versenyezhetsz.</p>'}
+        <form id="sync-form" class="sync-form" data-mode="${m}" novalidate>${forms[m]}</form>
       </div>`;
   }
 
@@ -1153,6 +1218,14 @@
       if (toggleFeatured(b.dataset.id)) rerenderInPlace();
     },
     'board-refresh'() { loadBoard(true); },
+    'auth-mode'(b) {
+      const em = $('#sync-email');
+      if (em) ui.authEmail = em.value.trim();
+      ui.authMode = b.dataset.mode;
+      rerenderInPlace();
+      const first = $('#sync-form input');
+      if (first) first.focus();
+    },
     'cat-filter'(b) { ui.catFilter = b.dataset.cat; render(); },
     'cal-habit'(b) { ui.calHabit = b.dataset.id; render(); },
     'cal-prev'() { const [y, m] = ui.calMonth.split('-').map(Number); ui.calMonth = D.key(new Date(y, m - 2, 1)).slice(0, 7); render(); },
@@ -1270,9 +1343,34 @@
   if (redirect && !redirect.ok) toast('A megerősítés nem sikerült: ' + redirect.message);
   if (redirect && redirect.ok) {
     redirect.done
-      .then(() => toast('Email megerősítve, bejelentkezve. ✓'))
+      .then(() => {
+        if (redirect.recovery) { $('#password-dialog').showModal(); $('#pw-new').focus(); }
+        else toast('Email megerősítve, bejelentkezve. ✓');
+      })
       .catch(() => toast('A bejelentkezés nem sikerült, próbáld újra.'));
   }
+
+  // Jelszó-visszaállítás: az emailben kapott link után új jelszó (kétszer megadva).
+  $('#pw-cancel').addEventListener('click', () => $('#password-dialog').close());
+  $('#password-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const pw = $('#pw-new').value;
+    const err = $('#pw-error');
+    err.textContent = '';
+    if (pw.length < 6) { err.textContent = 'A jelszó legalább 6 karakter legyen.'; return; }
+    if (pw !== $('#pw-new2').value) { err.textContent = 'A két jelszó nem egyezik. Írd be újra mindkettőt.'; return; }
+    $('#pw-save').disabled = true;
+    try {
+      await Sync.updatePassword(pw);
+      $('#password-dialog').close();
+      e.target.reset();
+      toast('Új jelszó elmentve. ✓');
+    } catch (ex) {
+      err.textContent = authMessage(ex);
+    } finally {
+      $('#pw-save').disabled = false;
+    }
+  });
 
   if (ui.checkin) location.hash = '#ma';
   onRoute();

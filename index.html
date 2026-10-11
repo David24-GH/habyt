@@ -119,6 +119,28 @@
     </form>
   </dialog>
 
+  <dialog id="password-dialog" aria-labelledby="pw-title">
+    <form id="password-form" novalidate>
+      <h2 id="pw-title">Új jelszó megadása</h2>
+      <p class="muted small">Add meg kétszer az új jelszavad (legalább 6 karakter).</p>
+      <label class="field">
+        <span>Új jelszó</span>
+        <input id="pw-new" type="password" autocomplete="new-password" required>
+      </label>
+      <label class="field">
+        <span>Új jelszó még egyszer</span>
+        <input id="pw-new2" type="password" autocomplete="new-password" required>
+      </label>
+      <p id="pw-error" class="form-error" role="alert"></p>
+      <div class="dlg-actions">
+        <div class="dlg-main">
+          <button type="button" class="btn btn-ghost" id="pw-cancel">Később</button>
+          <button type="submit" class="btn btn-primary" id="pw-save">Mentés</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
   <input id="import-file" type="file" accept="application/json,.json" hidden>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

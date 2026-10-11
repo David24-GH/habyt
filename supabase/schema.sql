@@ -80,3 +80,49 @@ $$;
 
 revoke all on function public.habyt_my_rank() from public, anon;
 grant execute on function public.habyt_my_rank() to authenticated;
+-- Egyedi hősnevek: minden név csak egyszer szerepelhet (kis- és nagybetűtől, szélső szóközöktől függetlenül).
+create unique index if not exists habyt_profiles_name_unique on public.habyt_profiles (lower(btrim(hero_name)));
+
+-- Szabad-e a név? Regisztráció előtt (bejelentkezés nélkül) is hívható, csak igen/nem választ ad.
+create or replace function public.habyt_name_available(p_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select char_length(btrim(coalesce(p_name, ''))) between 2 and 20
+    and not exists (
+      select 1 from public.habyt_profiles p
+      where lower(btrim(p.hero_name)) = lower(btrim(p_name))
+        and p.user_id is distinct from (select auth.uid())
+    );
+$$;
+
+revoke all on function public.habyt_name_available(text) from public;
+grant execute on function public.habyt_name_available(text) to anon, authenticated;
+
+-- Regisztrációkor a szerver rögtön lefoglalja a megadott hősnevet (ha foglalt, a regisztráció meghiúsul).
+create or replace function public.habyt_handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  n text := btrim(coalesce(new.raw_user_meta_data ->> 'hero_name', ''));
+begin
+  if char_length(n) < 2 or char_length(n) > 20 then
+    n := 'Hős-' || substr(replace(new.id::text, '-', ''), 1, 6);
+  end if;
+  insert into public.habyt_profiles (user_id, hero_name) values (new.id, n);
+  return new;
+end;
+$$;
+
+revoke all on function public.habyt_handle_new_user() from public, anon, authenticated;
+
+drop trigger if exists habyt_on_auth_user_created on auth.users;
+create trigger habyt_on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.habyt_handle_new_user();

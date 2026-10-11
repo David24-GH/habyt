@@ -14,6 +14,7 @@ const Sync = (() => {
   let again = false;
   let timer = null;
   let refreshing = null;
+  let nameChecked = false; // a szerveren lévő hősnév átvétele (bejelentkezésenként egyszer)
   const handlers = { status: new Set(), data: new Set(), auth: new Set() };
   const emit = (type, ...args) => handlers[type].forEach(fn => fn(...args));
 
@@ -30,6 +31,7 @@ const Sync = (() => {
   }
 
   function setSession(s) {
+    if (!s || !session || s.user.id !== session.user.id) nameChecked = false;
     session = s;
     try {
       if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
@@ -99,13 +101,20 @@ const Sync = (() => {
   const mine = () => `?user_id=eq.${encodeURIComponent(session.user.id)}`;
 
   // Nyilvános összesítő a ranglétrához: a hős neve, kinézete, szintje, rangja és XP-je (email nincs benne).
+  // A hősnév a szerveren egyedi: regisztrációkor a szerver foglalja le, utána csak renameHero() változtatja.
   let published = '';
+  const profileUrl = () => '/rest/v1/habyt_profiles' + mine();
+  const isDefaultName = n => !n || n === 'Hős' || /^Hős-[0-9a-f]{6}$/.test(n);
+  const fallbackName = () => 'Hős-' + session.user.id.replace(/-/g, '').slice(0, 6);
+
+  class NameTakenError extends Error {
+    constructor() { super('Ez a hősnév már foglalt.'); this.code = 'taken'; }
+  }
+
   async function publishProfile() {
     if (typeof Hero === 'undefined') return;
     const h = Hero.compute();
     const row = {
-      user_id: session.user.id,
-      hero_name: Hero.name().slice(0, 20),
       level: h.level,
       xp: Math.round(h.xp),
       stage: h.stageName,
@@ -113,14 +122,62 @@ const Sync = (() => {
       skin: Hero.skinId(),
       visible: !Store.state.settings.leaderboardHidden,
     };
-    const sig = JSON.stringify(row);
+    const sig = session.user.id + JSON.stringify(row);
     if (sig === published) return;
-    await data('/rest/v1/habyt_profiles?on_conflict=user_id', {
-      method: 'POST',
+    const updated = await data(profileUrl(), {
+      method: 'PATCH',
       body: { ...row, updated_at: new Date().toISOString() },
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      headers: { Prefer: 'return=representation' },
     });
+    // Még nincs sora (a névfoglalás előtt készült fiók): létrehozzuk egy egyedi alapnévvel.
+    if (!updated || !updated.length) {
+      await data('/rest/v1/habyt_profiles', {
+        method: 'POST',
+        body: { user_id: session.user.id, hero_name: fallbackName(), ...row },
+        headers: { Prefer: 'return=minimal' },
+      });
+    }
     published = sig;
+  }
+
+  // Szabad-e a hősnév? (Bejelentkezve a saját nevet szabadnak veszi.)
+  async function nameAvailable(name) {
+    return request('/rest/v1/rpc/habyt_name_available', { method: 'POST', auth: !!session, body: { p_name: name.trim() } });
+  }
+
+  // A hős átnevezése a szerveren; foglalt névnél NameTakenError.
+  async function renameHero(name) {
+    const n = name.trim();
+    try {
+      const rows = await data(profileUrl(), {
+        method: 'PATCH',
+        body: { hero_name: n, updated_at: new Date().toISOString() },
+        headers: { Prefer: 'return=representation' },
+      });
+      if (!rows || !rows.length) {
+        await data('/rest/v1/habyt_profiles', { method: 'POST', body: { user_id: session.user.id, hero_name: n }, headers: { Prefer: 'return=minimal' } });
+      }
+    } catch (err) {
+      if (err.status === 409 || err.code === '23505') throw new NameTakenError();
+      throw err;
+    }
+    published = '';
+  }
+
+  // Bejelentkezés után egyszer: a szerveren lefoglalt név lesz a hős neve ezen az eszközön is.
+  // Kivétel: ha a szerveren még csak alapnév van, a helyben beállított nevet próbáljuk lefoglalni.
+  async function reconcileName() {
+    if (nameChecked) return;
+    const rows = await data(profileUrl() + '&select=hero_name');
+    nameChecked = true;
+    if (!rows || !rows.length) return;
+    const server = rows[0].hero_name;
+    const local = (Store.state.settings.heroName || '').trim();
+    if (server === local) return;
+    if (isDefaultName(server) && !isDefaultName(local)) {
+      try { await renameHero(local); return; } catch (err) { if (err.code !== 'taken') throw err; }
+    }
+    Store.setShared({ heroName: server });
   }
 
   // A legjobb 100 látható hős XP szerint (egyenlőségnél az előbb odaérő áll elöl).
@@ -168,6 +225,7 @@ const Sync = (() => {
         });
         if (updated && updated.length) break;
       }
+      await reconcileName();
       await publishProfile();
       lastSync = Date.now();
       setStatus('ok');
@@ -196,10 +254,10 @@ const Sync = (() => {
   }
 
   // Igaz, ha rögtön be is jelentkezett; hamis, ha előbb meg kell erősíteni az emailt.
-  async function signUp(email, password) {
-    const redirect = location.origin + location.pathname;
-    const body = await request('/auth/v1/signup?redirect_to=' + encodeURIComponent(redirect), {
-      method: 'POST', auth: false, body: { email, password },
+  // A hősnevet a szerver a regisztrációval együtt foglalja le (foglalt névnél a regisztráció meghiúsul).
+  async function signUp(email, password, heroName) {
+    const body = await request('/auth/v1/signup?redirect_to=' + encodeURIComponent(redirectUrl()), {
+      method: 'POST', auth: false, body: { email, password, data: { hero_name: heroName.trim() } },
     });
     if (body && body.access_token) {
       setSession(fromToken(body));
@@ -208,6 +266,17 @@ const Sync = (() => {
       return true;
     }
     return false;
+  }
+
+  const redirectUrl = () => location.origin + location.pathname.replace(/index\.html$/, '');
+
+  // Jelszó-visszaállító levél küldése (a linkre kattintva az app új jelszót kér).
+  async function requestReset(email) {
+    await request('/auth/v1/recover?redirect_to=' + encodeURIComponent(redirectUrl()), { method: 'POST', auth: false, body: { email } });
+  }
+
+  async function updatePassword(password) {
+    await data('/auth/v1/user', { method: 'PUT', body: { password } });
   }
 
   async function signOut() {
@@ -237,6 +306,7 @@ const Sync = (() => {
     // A felhasználó adatait a tokennel kérjük le.
     return {
       ok: true,
+      recovery: p.get('type') === 'recovery',
       done: fetch(base + '/auth/v1/user', { headers: { apikey: cfg.supabaseKey, Authorization: 'Bearer ' + token.access_token } })
         .then(r => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
         .then(user => {
@@ -267,6 +337,10 @@ const Sync = (() => {
     signUp,
     signOut,
     consumeRedirect,
+    requestReset,
+    updatePassword,
+    nameAvailable,
+    renameHero,
     leaderboard,
     myRank,
     get user() { return session ? session.user : null; },

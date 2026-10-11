@@ -1,5 +1,5 @@
 // Offline működés: hálózat először (így mindig a legfrissebb verzió jön), ha nincs net, a gyorsítótárból.
-const CACHE = 'habyt-v5';
+const CACHE = 'habyt-v6';
 const ASSETS = [
   './',
   'index.html',
