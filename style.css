@@ -911,36 +911,21 @@ dialog h2 { font-size: 20px; margin-bottom: 16px; }
 }
 .podium-spot { display: flex; flex-direction: column; align-items: center; min-width: 0; }
 
-/* Ovális szövegbuborék a hős neve fölött, kis "farokkal" a hős felé. */
+/* A hős neve fölötte, ugyanolyan lekerekített keretben, mint a ranglétra sorai. */
 .podium-bubble {
-  position: relative;
   max-width: 100%;
-  padding: 6px 14px;
-  border-radius: 50%;
-  background: var(--surface-2);
-  border: 1.5px solid var(--border);
-  font-size: 0.82rem;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: #111114;
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
 }
 .podium-bubble > span { display: block; max-width: 9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.podium-bubble::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -7px;
-  width: 10px;
-  height: 10px;
-  background: var(--surface-2);
-  border-right: 1.5px solid var(--border);
-  border-bottom: 1.5px solid var(--border);
-  transform: translateX(-50%) rotate(45deg);
-}
 .podium-spot.place-1 .podium-bubble { border-color: #ffd166; }
-.podium-spot.place-1 .podium-bubble::after { border-color: #ffd166; }
-.podium-spot.is-me .podium-bubble { background: var(--red-dark); border-color: var(--red); }
-.podium-spot.is-me .podium-bubble::after { background: var(--red-dark); border-color: var(--red); }
+.podium-spot.is-me .podium-bubble { background: rgba(225, 29, 46, 0.12); border-color: var(--red); }
 
 .podium-hero { width: 76%; max-width: 104px; margin-top: 10px; margin-bottom: -6px; position: relative; z-index: 1; }
 .podium-spot.place-1 .podium-hero { width: 92%; max-width: 128px; }
@@ -999,5 +984,5 @@ dialog h2 { font-size: 20px; margin-bottom: 16px; }
   .ladder-row { grid-template-columns: 2.2em minmax(0, 1fr) auto; gap: 8px; padding: 10px 12px; }
   .ladder-lv { display: none; }
   .ladder-stage { display: block; margin-left: 0; }
-  .podium-bubble { padding: 5px 10px; font-size: 0.74rem; }
+  .podium-bubble { padding: 6px 10px; font-size: 0.76rem; }
 }
