@@ -8,7 +8,7 @@
   const MONTHS = ['január', 'február', 'március', 'április', 'május', 'június', 'július', 'augusztus', 'szeptember', 'október', 'november', 'december'];
   const MONTHS_SHORT = ['jan', 'feb', 'márc', 'ápr', 'máj', 'jún', 'júl', 'aug', 'szept', 'okt', 'nov', 'dec'];
   const QUICK_ICONS = ['💧', '🏃', '📖', '🧘', '💪', '😴', '🥗', '📝', '🎯', '💰', '🎸', '🌙', '🧹', '💻', '🙏', '⭐'];
-  const ROUTES = ['ma', 'szokasok', 'statisztika', 'beallitasok'];
+  const ROUTES = ['ma', 'szokasok', 'statisztika', 'profil', 'beallitasok'];
 
   const params = new URLSearchParams(location.search);
   const ui = {
@@ -172,15 +172,25 @@
 
   const xpPct = h => Math.round((h.into / h.need) * 100);
 
+  function featuredRow(size, withSlots) {
+    const { earned } = Badges.compute();
+    const ids = Badges.featured(earned);
+    const medals = ids.map(id => Badges.medal(Badges.BY_ID[id], size)).join('');
+    const slots = withSlots ? '<span class="medal-slot" aria-hidden="true">+</span>'.repeat(3 - ids.length) : '';
+    return { html: medals + slots, count: ids.length };
+  }
+
   function renderHeroCard() {
     const h = Hero.compute();
+    const fr = featuredRow('sm', false);
     return `
       <div class="card hero-card" id="hero-card">
-        <div class="hero-figure">${Hero.svg(h.stage, h.mood)}</div>
+        <a class="hero-figure" href="#profil" aria-label="Profil megnyitása">${Hero.svg(h.stage, h.mood)}</a>
         <div class="hero-info">
           <div class="hero-top">
             <strong class="hero-name">${esc(Hero.name())}</strong>
             <span class="hero-rank">${h.stageName}</span>
+            ${fr.count ? `<a class="featured-row" href="#profil" aria-label="Kiemelt badge-ek">${fr.html}</a>` : ''}
           </div>
           <div class="hero-level"><span>${h.level}. szint</span><span class="muted small">${h.into} / ${h.need} XP</span></div>
           <div class="xp-bar" role="progressbar" aria-label="Tapasztalat a következő szintig" aria-valuemin="0" aria-valuemax="${h.need}" aria-valuenow="${h.into}"><span style="width:${xpPct(h)}%"></span></div>
@@ -191,14 +201,15 @@
 
   function renderHeroPanel() {
     const h = Hero.compute();
+    const fr = featuredRow('md', true);
     return `
       <div class="card hero-panel">
         <div class="hero-panel-main">
           <div class="hero-figure big">${Hero.svg(h.stage, h.mood)}</div>
           <div class="hero-info">
-            <span class="eyebrow">Hősöd</span>
             <h2 class="hero-panel-name">${esc(Hero.name())}</h2>
             <div class="hero-top"><span class="hero-rank">${h.stageName}</span><span class="muted small">${h.level}. szint · ${h.xp} XP összesen</span></div>
+            <div class="featured-panel" title="Kiemelt badge-ek – a gyűjteményben választhatod ki őket">${fr.html}</div>
             <div class="xp-bar"><span style="width:${xpPct(h)}%"></span></div>
             <p class="muted small">${h.into} / ${h.need} XP a ${h.level + 1}. szintig</p>
             <p class="hero-next">${h.next
@@ -238,12 +249,34 @@
     $('#evolve-dialog').showModal();
   }
 
-  // Pipálás utáni visszajelzés: XP, szintlépés, rangfejlődés, tökéletes nap.
-  function heroFeedback(before, perfectNow) {
+  function showBadge(b) {
+    $('#badge-figure').innerHTML = Badges.medal(b, 'xl');
+    $('#badge-tier').textContent = Badges.TIERS[b.tier] + ' badge';
+    $('#badge-title').textContent = b.name;
+    $('#badge-text').textContent = b.desc;
+    const full = Badges.featured(Badges.compute().earned).length >= 3;
+    const btn = $('#badge-feature');
+    btn.dataset.id = b.id;
+    btn.textContent = full ? 'Megnézem a profilon' : 'Kiemelem a profilomon';
+    $('#badge-dialog').showModal();
+  }
+
+  const snapshot = () => ({ hero: Hero.compute(), earned: Badges.compute().earned });
+
+  // Pipálás utáni visszajelzés: XP, szintlépés, rangfejlődés, új badge, tökéletes nap.
+  function heroFeedback(prev, perfectNow) {
+    const before = prev.hero;
     const after = Hero.compute();
+    const { earned } = Badges.compute();
+    const fresh = [...earned].filter(id => !prev.earned.has(id) && Badges.unseen(earned).includes(id));
+    if (fresh.length) Badges.markSeen(fresh);
+    updateNavDot();
     showXp(after.xp - before.xp);
     if (after.stage > before.stage) {
       showEvolution(after);
+      celebrate(fresh.length ? `🏅 Új badge: ${Badges.BY_ID[fresh[0]].name}!` : null);
+    } else if (fresh.length) {
+      showBadge(Badges.BY_ID[fresh[fresh.length - 1]]);
       celebrate(null);
     } else if (after.level > before.level) {
       celebrate(perfectNow ? `Tökéletes nap! 🔥 Szintlépés: ${after.level}. szint ⬆️` : `Szintlépés! ${after.level}. szint ⬆️`);
@@ -475,8 +508,6 @@
     el.innerHTML = `
       <header class="view-head"><div><span class="eyebrow">Visszatekintés</span><h1>Statisztika</h1></div></header>
 
-      ${renderHeroPanel()}
-
       <div class="tiles">
         <div class="tile tile-hot"><span class="tile-label">Tökéletes napok sorozata</span><span class="tile-value">🔥 ${Stats.perfectStreak()}</span></div>
         <div class="tile"><span class="tile-label">Leghosszabb sorozat</span><span class="tile-value">🏆 ${Stats.perfectBest()}</span></div>
@@ -591,6 +622,147 @@
       <p class="muted small cal-foot">${due ? `Ebben a hónapban: <strong>${done}/${due}</strong> (${pct(done / due)}) · ` : ''}Kattints egy napra a pipa utólagos módosításához.</p>`;
   }
 
+  // ---------- Profil ----------
+
+  function fmtDate(k) {
+    const d = D.parse(k);
+    return `${d.getFullYear()}. ${MONTHS_SHORT[d.getMonth()]}. ${d.getDate()}.`;
+  }
+
+  function renderProfile() {
+    const el = $('#view-profil');
+    const s = Store.state.settings;
+    const { badges, tracks, earned } = Badges.compute();
+    const featured = Badges.featured(earned);
+    const fresh = new Set(Badges.unseen(earned));
+
+    // Előbb a folyamatban lévők (haladás szerint), aztán a még el nem kezdettek, végül a teljesen kész sorozatok.
+    const active = tracks.filter(t => t.next && t.hasHabits).sort((a, b) => b.current / b.next.target - a.current / a.next.target);
+    const idle = tracks.filter(t => t.next && !t.hasHabits);
+    const done = tracks.filter(t => !t.next);
+
+    const challengeRow = t => {
+      const b = t.next;
+      const cur = Math.min(t.current, b.target);
+      const unit = t.kind === 'checks' ? 'pipa' : 'nap';
+      return `
+        <div class="challenge ${t.hasHabits ? '' : 'is-idle'}">
+          ${Badges.medal(b, 'md', 'is-locked')}
+          <div class="challenge-body">
+            <div class="challenge-top"><strong>${b.name}</strong><span class="muted small">${t.name} · ${Badges.TIERS[b.tier]}</span></div>
+            <div class="challenge-desc">${b.desc}</div>
+            ${t.hasHabits ? `
+              <div class="xp-bar thin"><span style="width:${Math.round((cur / b.target) * 100)}%"></span></div>
+              <div class="challenge-meta"><span>${cur} / ${b.target} ${unit}</span>${t.kind !== 'checks' && t.best > t.current ? `<span>Legjobb: ${t.best} nap</span>` : ''}</div>`
+            : `<div class="challenge-meta"><a href="#szokasok">Adj hozzá ${t.name.toLowerCase()} szokást</a> a kezdéshez.</div>`}
+          </div>
+          <span class="challenge-step">${t.earnedCount}/${t.steps.length}</span>
+        </div>`;
+    };
+
+    el.innerHTML = `
+      <header class="view-head"><div><span class="eyebrow">Hősöd és eredményeid</span><h1>Profil</h1></div></header>
+
+      ${Store.state.habits.length ? renderHeroPanel() : ''}
+
+      <div class="card settings">
+        <h2>Hős testreszabása</h2>
+        <div class="hero-custom">
+          <div class="hero-figure" id="skin-preview">${Hero.svg(Hero.compute().stage, 'ready')}</div>
+          <div class="hero-custom-fields">
+            <label class="setting-row">
+              <span><strong>Név</strong><span class="muted small">Így szólít meg a Ma oldalon.</span></span>
+              <input type="text" id="s-hero" maxlength="20" placeholder="Hős" value="${esc(s.heroName || '')}">
+            </label>
+            <div class="setting-row">
+              <span><strong>Nem</strong></span>
+              <div class="gender-toggle" role="radiogroup" aria-label="A hős neme">
+                ${Hero.GENDERS.map(gd => `
+                  <button type="button" class="gender-btn" role="radio" data-action="set-gender" data-gender="${gd.id}"
+                    aria-checked="${Hero.gender() === gd.id}" aria-label="${gd.name}" title="${gd.name}">${gd.symbol}</button>`).join('')}
+              </div>
+            </div>
+            <div class="setting-row skin-row">
+              <span><strong>Bőrszín</strong></span>
+              <div class="skin-swatches" role="radiogroup" aria-label="Bőrszín">
+                ${Hero.SKINS.map(sk => `
+                  <button type="button" class="skin-swatch" role="radio" data-action="set-skin" data-skin="${sk.id}"
+                    aria-checked="${Hero.skinId() === sk.id}" aria-label="${sk.name}" title="${sk.name}" style="--skin:${sk.color}"></button>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="section-title">⚔️ Kihívások</h2>
+      <p class="muted small section-sub">Automatikusan futnak: érd el a sorozatot, és megkapod a badge-et. Egy megszerzett badge-et nem veszíthetsz el.</p>
+      <div class="card list-card challenges">
+        ${active.map(challengeRow).join('') || '<p class="muted">Adj hozzá szokásokat, és indulnak a kihívások!</p>'}
+        ${idle.length ? `<details class="idle-challenges"><summary>Még nem elkezdett kihívások (${idle.length})</summary>${idle.map(challengeRow).join('')}</details>` : ''}
+        ${done.length ? `<p class="muted small done-tracks">✓ Teljesen kész: ${done.map(t => t.name).join(', ')}</p>` : ''}
+      </div>
+
+      <div class="section-title row-between">
+        <h2>🏅 Badge-gyűjtemény</h2>
+        <span class="muted small">${earned.size} / ${badges.length} megszerezve</span>
+      </div>
+      <p class="muted small section-sub">Koppints egy megszerzett badge-re a kiemeléshez (legfeljebb 3). A kiemeltek a hősöd mellett látszanak.</p>
+      <div class="badge-grid">
+        ${badges.map(b => {
+          const isFeat = featured.includes(b.id);
+          return b.earned ? `
+            <button class="badge-item is-earned ${isFeat ? 'is-featured' : ''}" data-action="feature-badge" data-id="${b.id}" aria-pressed="${isFeat}">
+              ${fresh.has(b.id) ? '<span class="badge-new">ÚJ</span>' : ''}
+              ${isFeat ? '<span class="badge-pin" aria-hidden="true">★</span>' : ''}
+              ${Badges.medal(b, 'lg')}
+              <span class="badge-name">${b.name}</span>
+              <span class="badge-sub">${fmtDate(b.earnedAt)}</span>
+            </button>` : `
+            <div class="badge-item" title="${b.desc}">
+              ${Badges.medal(b, 'lg', 'is-locked')}
+              <span class="badge-name">${b.name}</span>
+              <span class="badge-sub">🔒 ${b.desc}</span>
+            </div>`;
+        }).join('')}
+      </div>
+    `;
+
+    $('#s-hero').addEventListener('change', e => {
+      s.heroName = e.target.value.trim();
+      Store.save();
+      toast(`A hősöd neve: ${Hero.name()}`);
+      render();
+    });
+
+    // Az itt megmutatott új badge-ek innentől "látottak".
+    if (fresh.size) { Badges.markSeen([...fresh]); updateNavDot(); }
+  }
+
+  function toggleFeatured(id) {
+    const s = Store.state.settings;
+    const { earned } = Badges.compute();
+    if (!earned.has(id)) return false;
+    let list = Badges.featured(earned);
+    if (list.includes(id)) {
+      list = list.filter(x => x !== id);
+      toast('Kiemelés levéve.');
+    } else if (list.length >= 3) {
+      toast('Legfeljebb 3 badge emelhető ki. Előbb vegyél le egyet.');
+      return false;
+    } else {
+      list.push(id);
+      toast(`Kiemelve: ${Badges.BY_ID[id].icon} ${Badges.BY_ID[id].name}`);
+    }
+    s.featuredBadges = list;
+    Store.save();
+    return true;
+  }
+
+  function updateNavDot() {
+    const n = Badges.unseen(Badges.compute().earned).length;
+    $('.nav a[data-route="profil"]')?.classList.toggle('has-dot', n > 0);
+  }
+
   // ---------- Beállítások ----------
 
   function renderSettings() {
@@ -618,31 +790,7 @@
 
       <div class="card settings">
         <h2>Hősöd</h2>
-        <div class="hero-custom">
-          <div class="hero-figure" id="skin-preview">${Hero.svg(Hero.compute().stage, 'ready')}</div>
-          <div class="hero-custom-fields">
-            <label class="setting-row">
-              <span><strong>Név</strong><span class="muted small">Így szólít meg a Ma oldalon.</span></span>
-              <input type="text" id="s-hero" maxlength="20" placeholder="Hős" value="${esc(s.heroName || '')}">
-            </label>
-            <div class="setting-row">
-              <span><strong>Nem</strong></span>
-              <div class="gender-toggle" role="radiogroup" aria-label="A hős neme">
-                ${Hero.GENDERS.map(gd => `
-                  <button type="button" class="gender-btn" role="radio" data-action="set-gender" data-gender="${gd.id}"
-                    aria-checked="${Hero.gender() === gd.id}" aria-label="${gd.name}" title="${gd.name}">${gd.symbol}</button>`).join('')}
-              </div>
-            </div>
-            <div class="setting-row skin-row">
-              <span><strong>Bőrszín</strong></span>
-              <div class="skin-swatches" role="radiogroup" aria-label="Bőrszín">
-                ${Hero.SKINS.map(sk => `
-                  <button type="button" class="skin-swatch" role="radio" data-action="set-skin" data-skin="${sk.id}"
-                    aria-checked="${Hero.skinId() === sk.id}" aria-label="${sk.name}" title="${sk.name}" style="--skin:${sk.color}"></button>`).join('')}
-              </div>
-            </div>
-          </div>
-        </div>
+        <p class="muted small">A hősöd nevét, nemét és bőrszínét, valamint a kiemelt badge-eidet a <a href="#profil">Profil</a> oldalon állíthatod be.</p>
       </div>
 
       <div class="card settings">
@@ -683,11 +831,6 @@
       Store.save();
       toast(`Esti check-in: ${s.reminderTime}`);
     });
-    $('#s-hero').addEventListener('change', e => {
-      s.heroName = e.target.value.trim();
-      Store.save();
-      toast(`A hősöd neve: ${Hero.name()}`);
-    });
     $('#s-goal').addEventListener('change', e => {
       s.goal = e.target.value || null;
       s.onboarded = true;
@@ -726,12 +869,20 @@
 
   // ---------- Útvonalak és események ----------
 
-  const renderers = { ma: renderToday, szokasok: renderHabits, statisztika: renderStats, beallitasok: renderSettings };
+  const renderers = { ma: renderToday, szokasok: renderHabits, statisztika: renderStats, profil: renderProfile, beallitasok: renderSettings };
 
   function render() {
     for (const r of ROUTES) $('#view-' + r).hidden = r !== ui.route;
     document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('is-active', a.dataset.route === ui.route));
     renderers[ui.route]();
+    updateNavDot();
+  }
+
+  // Újrarajzolás a görgetési pozíció megtartásával.
+  function rerenderInPlace() {
+    const y = window.scrollY;
+    render();
+    window.scrollTo(0, y);
   }
 
   function onRoute() {
@@ -756,7 +907,7 @@
       const k = ui.dayKey;
       const due = Store.dueHabits(k);
       const wasPerfect = due.length && due.every(h => Store.isDone(k, h.id));
-      const before = Hero.compute();
+      const before = snapshot();
       Store.toggle(k, b.dataset.id);
       const isPerfect = due.every(h => Store.isDone(k, h.id));
       render();
@@ -779,14 +930,17 @@
     'set-skin'(b) {
       Store.state.settings.heroSkin = b.dataset.skin;
       Store.save();
-      document.querySelectorAll('.skin-swatch').forEach(x => x.setAttribute('aria-checked', x === b));
+      rerenderInPlace();
       $('#skin-preview').innerHTML = Hero.svg(Hero.compute().stage, 'proud');
     },
     'set-gender'(b) {
       Store.state.settings.heroGender = b.dataset.gender;
       Store.save();
-      document.querySelectorAll('.gender-btn').forEach(x => x.setAttribute('aria-checked', x === b));
+      rerenderInPlace();
       $('#skin-preview').innerHTML = Hero.svg(Hero.compute().stage, 'proud');
+    },
+    'feature-badge'(b) {
+      if (toggleFeatured(b.dataset.id)) rerenderInPlace();
     },
     'cat-filter'(b) { ui.catFilter = b.dataset.cat; render(); },
     'cal-habit'(b) { ui.calHabit = b.dataset.id; render(); },
@@ -795,7 +949,7 @@
     'cal-toggle'(b) {
       const sc = $('#heatmap-scroll')?.scrollLeft;
       const y = window.scrollY;
-      const before = Hero.compute();
+      const before = snapshot();
       Store.toggle(b.dataset.key, ui.calHabit);
       render();
       window.scrollTo(0, y);
@@ -849,6 +1003,13 @@
     } catch (err) {
       toast('Ez nem érvényes Habyt mentésfájl.');
     }
+  });
+
+  $('#badge-feature').addEventListener('click', e => {
+    const id = e.currentTarget.dataset.id;
+    $('#badge-dialog').close();
+    if (Badges.featured(Badges.compute().earned).length >= 3) location.hash = '#profil';
+    else if (toggleFeatured(id)) render();
   });
 
   window.addEventListener('hashchange', onRoute);

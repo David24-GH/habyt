@@ -457,6 +457,128 @@ main {
   .hero-custom .hero-figure { align-self: center; }
 }
 
+/* ---------- Badge-ek és kihívások ---------- */
+
+.medal {
+  --ring: #cd7f32;
+  --ring-dark: #7a4a1c;
+  --size: 44px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, var(--ring), var(--ring-dark), var(--ring), var(--ring-dark), var(--ring));
+  box-shadow: 0 4px 14px -6px var(--ring);
+}
+.medal::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--size) * 0.1);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #2a2a30, #121215 75%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.medal-icon { position: relative; font-size: calc(var(--size) * 0.46); line-height: 1; }
+.medal.tier-ezust { --ring: #e5e9ef; --ring-dark: #7c818b; }
+.medal.tier-arany { --ring: #ffd166; --ring-dark: #b7791f; }
+.medal.tier-legenda { --ring: #ff4d5e; --ring-dark: #7f1d1d; box-shadow: 0 0 18px -2px var(--red-glow); }
+.medal.size-sm { --size: 26px; }
+.medal.size-md { --size: 44px; }
+.medal.size-lg { --size: 58px; }
+.medal.size-xl { --size: 120px; }
+.medal.is-locked { filter: grayscale(1) brightness(0.55); box-shadow: none; }
+.medal.is-locked .medal-icon { opacity: 0.6; }
+
+.medal-slot {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px dashed var(--border);
+  color: #55555c;
+  font-weight: 800;
+}
+
+.featured-row { display: inline-flex; gap: 4px; margin-left: auto; text-decoration: none; }
+.featured-panel { display: flex; gap: 8px; margin-top: 10px; }
+.hero-card .hero-figure { display: block; }
+
+.section-sub { margin: -6px 0 12px; }
+.section-title.row-between { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.section-title.row-between h2 { margin: 0; }
+
+.challenge { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.challenges > .challenge:last-of-type { border-bottom: 0; }
+.challenge-body { flex: 1; min-width: 0; }
+.challenge-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.challenge-desc { color: var(--muted); font-size: 13px; margin: 1px 0 6px; }
+.challenge-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.challenge-step { flex: none; align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 12px; font-weight: 700; color: var(--muted); }
+.challenge.is-idle { opacity: 0.75; }
+.xp-bar.thin { height: 7px; }
+.idle-challenges { border-top: 1px solid var(--border); }
+.idle-challenges summary { cursor: pointer; padding: 12px 0; color: var(--muted); font-weight: 600; }
+.done-tracks { margin: 0; padding: 12px 0; border-top: 1px solid var(--border); }
+
+.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.badge-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  text-align: center;
+  color: inherit;
+  font: inherit;
+}
+.badge-item.is-earned { cursor: pointer; transition: border-color 0.15s, transform 0.1s; }
+.badge-item.is-earned:hover { border-color: #3a3a42; }
+.badge-item.is-earned:active { transform: scale(0.98); }
+.badge-item.is-featured { border-color: var(--red); background: linear-gradient(180deg, rgba(225, 29, 46, 0.14), var(--surface) 70%); }
+.badge-name { font-weight: 800; font-size: 13.5px; line-height: 1.2; }
+.badge-sub { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
+.badge-item:not(.is-earned) .badge-name { color: var(--muted); }
+.badge-pin { position: absolute; top: 6px; right: 8px; color: var(--red-hi); font-size: 15px; }
+.badge-new {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.badge-figure { margin: 12px auto 10px; animation: levelup 1.1s ease-out; }
+.badge-tier { display: block; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+.center-row { justify-content: center; }
+
+.nav a { position: relative; }
+.nav a.has-dot::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: calc(50% + 9px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red-hi);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+@media (min-width: 860px) { .nav a.has-dot::after { top: 50%; left: auto; right: 14px; transform: translateY(-50%); } }
+@media (max-width: 400px) { .nav a { font-size: 10.5px; } }
+
 .evolve { text-align: center; width: min(380px, calc(100vw - 32px)); }
 .evolve-figure { width: 180px; margin: 6px auto 10px; animation: levelup 1.1s ease-out; }
 .evolve h2 { margin-bottom: 6px; }
