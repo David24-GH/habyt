@@ -19,19 +19,21 @@ const Badges = (() => {
   };
   const CAT_TARGETS = [7, 30, 100];
   const CAT_TIERS = ['bronz', 'ezust', 'arany'];
+  // XP-jutalom a nehézség szerint. A tökéletes napos sorozat nehezebb (minden szokás kell), ezért többet ér.
+  const CAT_XP = [50, 200, 750];
 
   const TRACKS = [
     {
       id: 'start', kind: 'checks', name: 'Kezdet',
-      steps: [{ id: 'elso-lepes', target: 1, name: 'Első lépés', icon: '🌱', tier: 'bronz', desc: 'Pipáld ki az első szokásodat.' }],
+      steps: [{ id: 'elso-lepes', target: 1, name: 'Első lépés', icon: '🌱', tier: 'bronz', xp: 10, desc: 'Pipáld ki az első szokásodat.' }],
     },
     {
       id: 'perfect', kind: 'perfect', name: 'Tökéletes napok',
       steps: [
-        { id: 'perfect-3', target: 3, name: 'Hármas találat', icon: '🎯', tier: 'bronz' },
-        { id: 'perfect-7', target: 7, name: 'Tökéletes hét', icon: '🔥', tier: 'ezust' },
-        { id: 'perfect-30', target: 30, name: 'Hibátlan hónap', icon: '💎', tier: 'arany' },
-        { id: 'perfect-100', target: 100, name: 'Legendás sorozat', icon: '👑', tier: 'legenda' },
+        { id: 'perfect-3', target: 3, name: 'Hármas találat', icon: '🎯', tier: 'bronz', xp: 30 },
+        { id: 'perfect-7', target: 7, name: 'Tökéletes hét', icon: '🔥', tier: 'ezust', xp: 100 },
+        { id: 'perfect-30', target: 30, name: 'Hibátlan hónap', icon: '💎', tier: 'arany', xp: 400 },
+        { id: 'perfect-100', target: 100, name: 'Legendás sorozat', icon: '👑', tier: 'legenda', xp: 1500 },
       ].map(s => ({ ...s, desc: `${s.target} tökéletes nap egymás után (minden szokás kész).` })),
     },
     ...Object.entries(CATEGORY_BADGES).map(([cat, names]) => ({
@@ -42,6 +44,7 @@ const Badges = (() => {
         name,
         icon,
         tier: CAT_TIERS[i],
+        xp: CAT_XP[i],
         desc: `${CAT_TARGETS[i]} napos sorozat egy ${CATEGORIES[cat].label.toLowerCase()} kategóriájú szokással.`,
       })),
     })),
@@ -107,6 +110,7 @@ const Badges = (() => {
     return out;
   }
 
+  // A badge-ek nehézségi sorrendben (könnyűtől a nehézig): az XP-jutalom tükrözi a nehézséget.
   function compute() {
     const badges = [];
     const tracks = [];
@@ -116,8 +120,16 @@ const Badges = (() => {
       badges.push(...items);
       tracks.push({ ...t, ...p, next: items.find(b => !b.earned) || null, earnedCount: items.filter(b => b.earned).length });
     }
+    badges.sort((a, b) => a.xp - b.xp);
     const earned = new Set(badges.filter(b => b.earned).map(b => b.id));
     return { badges, tracks, earned };
+  }
+
+  // Badge-ekért kapott XP napra bontva (a megszerzés napján jár), a hős XP-jéhez.
+  function xpByDay() {
+    const out = {};
+    for (const b of compute().badges) if (b.earned) out[b.earnedAt] = (out[b.earnedAt] || 0) + b.xp;
+    return out;
   }
 
   // Kiemelt badge-ek (legfeljebb 3), csak a ténylegesen megszerzettek.
@@ -144,5 +156,5 @@ const Badges = (() => {
     return `<span class="medal tier-${b.tier} size-${size} ${extra}" title="${b.name}"><span class="medal-icon">${b.icon}</span></span>`;
   }
 
-  return { TIERS, TRACKS, ALL, BY_ID, compute, featured, unseen, markSeen, medal };
+  return { TIERS, TRACKS, ALL, BY_ID, compute, xpByDay, featured, unseen, markSeen, medal };
 })();

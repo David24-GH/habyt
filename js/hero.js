@@ -41,11 +41,13 @@ const Hero = (() => {
     let todayInfo = { due: 0, done: 0 };
 
     if (Store.state.habits.length) {
+      const badgeXp = typeof Badges !== 'undefined' ? Badges.xpByDay() : {};
       for (let k = Stats.firstKey(); k <= today; k = D.add(k, 1)) {
         const { due, done } = Stats.day(k);
         if (k === today) todayInfo = { due, done };
         xp += done * XP_HABIT;
         if (due && done === due) xp += XP_PERFECT;
+        xp += badgeXp[k] || 0;
         if (k < today && due && !done) {
           // Kihagyott nap: XP-veszteség, de az elért rang alá nem esik.
           xp = Math.max(levelStart(STAGES[stage].min), xp - XP_MISS);

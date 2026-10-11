@@ -225,7 +225,7 @@
               <span class="road-lvl">${i <= h.stage ? (i === h.stage ? 'Most' : '✓') : `🔒 ${st.min}. szint`}</span>
             </div>`).join('')}
         </div>
-        <p class="muted small hero-rules">+${Hero.XP_HABIT} XP minden teljesített szokásért · +${Hero.XP_PERFECT} XP tökéletes napért · −${Hero.XP_MISS} XP, ha egy napon semmit nem teljesítesz (az elért rangból nem esel vissza).</p>
+        <p class="muted small hero-rules">+${Hero.XP_HABIT} XP minden teljesített szokásért · +${Hero.XP_PERFECT} XP tökéletes napért · −${Hero.XP_MISS} XP, ha egy napon semmit nem teljesítesz (az elért rangból nem esel vissza) · minden badge extra XP-t ad a nehézségétől függően.</p>
       </div>`;
   }
 
@@ -251,7 +251,7 @@
 
   function showBadge(b) {
     $('#badge-figure').innerHTML = Badges.medal(b, 'xl');
-    $('#badge-tier').textContent = Badges.TIERS[b.tier] + ' badge';
+    $('#badge-tier').innerHTML = `${Badges.TIERS[b.tier]} badge · <span class="xp-reward">+${b.xp} XP</span>`;
     $('#badge-title').textContent = b.name;
     $('#badge-text').textContent = b.desc;
     const full = Badges.featured(Badges.compute().earned).length >= 3;
@@ -648,7 +648,7 @@
         <div class="challenge ${t.hasHabits ? '' : 'is-idle'}">
           ${Badges.medal(b, 'md', 'is-locked')}
           <div class="challenge-body">
-            <div class="challenge-top"><strong>${b.name}</strong><span class="muted small">${t.name} · ${Badges.TIERS[b.tier]}</span></div>
+            <div class="challenge-top"><strong>${b.name}</strong><span class="muted small">${t.name} · ${Badges.TIERS[b.tier]}</span><span class="xp-reward">+${b.xp} XP</span></div>
             <div class="challenge-desc">${b.desc}</div>
             ${t.hasHabits ? `
               <div class="xp-bar thin"><span style="width:${Math.round((cur / b.target) * 100)}%"></span></div>
@@ -687,11 +687,13 @@
               ${isFeat ? '<span class="badge-pin" aria-hidden="true">★</span>' : ''}
               ${Badges.medal(b, 'lg')}
               <span class="badge-name">${b.name}</span>
+              <span class="badge-xp">+${b.xp} XP ✓</span>
               <span class="badge-sub">${fmtDate(b.earnedAt)}</span>
             </button>` : `
             <div class="badge-item" title="${b.desc}">
               ${Badges.medal(b, 'lg', 'is-locked')}
               <span class="badge-name">${b.name}</span>
+              <span class="badge-xp">+${b.xp} XP</span>
               <span class="badge-sub">🔒 ${b.desc}</span>
             </div>`;
         }).join('')}

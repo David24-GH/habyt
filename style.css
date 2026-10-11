@@ -547,6 +547,10 @@ main {
 .badge-name { font-weight: 800; font-size: 13.5px; line-height: 1.2; }
 .badge-sub { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
 .badge-item:not(.is-earned) .badge-name { color: var(--muted); }
+.xp-reward { margin-left: auto; color: #ffd166; font-size: 12.5px; font-weight: 800; white-space: nowrap; }
+.badge-tier .xp-reward { margin-left: 0; }
+.badge-xp { font-size: 12px; font-weight: 800; color: #ffd166; }
+.badge-item:not(.is-earned) .badge-xp { color: #8a7a4a; }
 .badge-pin { position: absolute; top: 6px; right: 8px; color: var(--red-hi); font-size: 15px; }
 .badge-new {
   position: absolute;
