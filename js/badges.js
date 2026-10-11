@@ -144,11 +144,9 @@ const Badges = (() => {
   }
 
   function markSeen(ids) {
-    const s = Store.state.settings;
-    const seen = new Set(s.badgesSeen || []);
+    const seen = new Set(Store.state.settings.badgesSeen || []);
     ids.forEach(id => seen.add(id));
-    s.badgesSeen = [...seen];
-    Store.save();
+    Store.setShared({ badgesSeen: [...seen] });
   }
 
   // Érem-ábra: a fokozat színes kerete, középen az ikon.

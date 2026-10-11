@@ -782,6 +782,24 @@ input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 .switch:checked::after { transform: translateX(18px); }
 .switch:disabled { opacity: 0.4; }
 
+.sync-card { border-color: var(--red-dark); }
+.sync-user { margin: 0 0 6px; overflow-wrap: anywhere; }
+.sync-status { display: flex; align-items: center; gap: 8px; margin: 0 0 4px !important; font-weight: 600; font-size: 14px; color: var(--muted); }
+.sync-status .dot { width: 9px; height: 9px; border-radius: 50%; background: #55555c; flex: none; }
+.sync-status.ok .dot { background: #22c55e; }
+.sync-status.busy .dot { background: var(--red-hi); animation: pulse 1s ease-in-out infinite; }
+.sync-status.warn .dot { background: #f59e0b; }
+.sync-status.err { color: var(--red-hi); }
+.sync-status.err .dot { background: var(--red); }
+.sync-form { display: grid; gap: 10px; margin-top: 12px; }
+.sync-form input { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; min-height: 44px; }
+.sync-form .form-error { margin: 0; min-height: 0; }
+.sync-form .btn-row { margin-top: 2px !important; }
+.sync-info { margin: 0 !important; color: #86efac; font-size: 14px; }
+.sync-info:empty, .sync-form .form-error:empty { display: none; }
+
+@keyframes pulse { 50% { opacity: 0.35; } }
+
 /* ---------- Párbeszédablak ---------- */
 
 dialog {

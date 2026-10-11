@@ -311,6 +311,7 @@
       <div class="center">
         <a class="btn btn-ghost" href="#szokasok">Teljes katalógus és saját szokás</a>
       </div>
+      ${Sync.enabled && !Sync.user ? '<p class="muted small center">Már használod a Habytot másik eszközön? <a href="#beallitasok">Jelentkezz be</a>, és megjönnek a szokásaid.</p>' : ''}
     `;
   }
 
@@ -719,8 +720,7 @@
       list.push(id);
       toast(`Kiemelve: ${Badges.BY_ID[id].icon} ${Badges.BY_ID[id].name}`);
     }
-    s.featuredBadges = list;
-    Store.save();
+    Store.setShared({ featuredBadges: list });
     return true;
   }
 
@@ -740,6 +740,8 @@
 
     el.innerHTML = `
       <header class="view-head"><div><span class="eyebrow">Habyt</span><h1>Beállítások</h1></div></header>
+
+      ${renderSyncCard()}
 
       <div class="card settings">
         <h2>Esti check-in</h2>
@@ -806,7 +808,9 @@
 
       <div class="card settings">
         <h2>Adatok</h2>
-        <p class="muted small">Az adataid csak ezen az eszközön tárolódnak. Mentéssel átviheted őket másik eszközre.</p>
+        <p class="muted small">${Sync.user
+          ? 'Az adataid ezen az eszközön és a fiókodban is megvannak. Biztonsági mentést fájlba is készíthetsz.'
+          : 'Bejelentkezés nélkül az adataid csak ezen az eszközön tárolódnak. Mentéssel fájlban is átviheted őket.'}</p>
         <div class="btn-row">
           <button class="btn btn-ghost" data-action="export">Mentés fájlba</button>
           <button class="btn btn-ghost" data-action="import">Betöltés fájlból</button>
@@ -817,30 +821,135 @@
 
     $('#s-time').addEventListener('change', e => {
       if (!e.target.value) return;
-      s.reminderTime = e.target.value;
-      s.lastNotified = null;
-      Store.save();
-      toast(`Esti check-in: ${s.reminderTime}`);
+      Store.setLocal({ lastNotified: null });
+      Store.setShared({ reminderTime: e.target.value });
+      toast(`Esti check-in: ${e.target.value}`);
     });
     $('#s-hero').addEventListener('change', e => {
-      s.heroName = e.target.value.trim();
-      Store.save();
+      Store.setShared({ heroName: e.target.value.trim() });
       toast(`A hősöd neve: ${Hero.name()}`);
     });
     $('#s-goal').addEventListener('change', e => {
-      s.goal = e.target.value || null;
-      s.onboarded = true;
-      Store.save();
+      Store.setShared({ goal: e.target.value || null, onboarded: true });
       toast('Cél mentve.');
     });
     $('#s-notify').addEventListener('change', async e => {
-      if (!e.target.checked) { s.notify = false; Store.save(); return; }
+      if (!e.target.checked) { Store.setLocal({ notify: false }); return; }
       const perm = await Notification.requestPermission();
-      s.notify = perm === 'granted';
-      Store.save();
-      e.target.checked = s.notify;
-      toast(s.notify ? 'Értesítés bekapcsolva.' : 'Az értesítés nincs engedélyezve a böngészőben.');
+      Store.setLocal({ notify: perm === 'granted' });
+      e.target.checked = perm === 'granted';
+      toast(perm === 'granted' ? 'Értesítés bekapcsolva.' : 'Az értesítés nincs engedélyezve a böngészőben.');
     });
+
+    const leader = $('#s-leader');
+    if (leader) leader.addEventListener('change', e => {
+      Store.setShared({ leaderboardHidden: !e.target.checked });
+      toast(e.target.checked ? 'A hősöd megjelenik a ranglétrán.' : 'A hősöd rejtve marad a ranglétrán.');
+    });
+
+    const form = $('#sync-form');
+    if (form) {
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const mode = e.submitter && e.submitter.dataset.mode === 'signup' ? 'signup' : 'signin';
+        const email = $('#sync-email').value.trim();
+        const password = $('#sync-pass').value;
+        const err = $('#sync-error');
+        err.textContent = '';
+        if (mode === 'signup' && password.length < 6) { err.textContent = 'A jelszó legalább 6 karakter legyen.'; return; }
+        form.querySelectorAll('button').forEach(b => { b.disabled = true; });
+        try {
+          if (mode === 'signin') {
+            await Sync.signIn(email, password);
+            toast('Bejelentkezve, szinkronizálva. ✓');
+          } else if (await Sync.signUp(email, password)) {
+            toast('Fiók létrehozva, szinkronizálva. ✓');
+          } else {
+            err.textContent = '';
+            $('#sync-info').textContent = `Küldtünk egy megerősítő emailt ide: ${email}. Kattints a benne lévő linkre, és utána már be is leszel jelentkezve.`;
+          }
+        } catch (ex) {
+          err.textContent = authMessage(ex);
+        } finally {
+          form.querySelectorAll('button').forEach(b => { b.disabled = false; });
+        }
+      });
+    }
+  }
+
+  function authMessage(ex) {
+    const m = String(ex.message || '').toLowerCase();
+    if (!navigator.onLine) return 'Nincs internetkapcsolat.';
+    if (ex instanceof TypeError) return 'Nem sikerült elérni a szervert. Próbáld újra kicsit később.';
+    if (m.includes('invalid login')) return 'Hibás email vagy jelszó.';
+    if (m.includes('not confirmed')) return 'Előbb erősítsd meg az emailedet a kapott levélben lévő linkkel.';
+    if (m.includes('already registered') || m.includes('already exists')) return 'Ezzel az emaillel már van fiók. Jelentkezz be.';
+    if (m.includes('password')) return 'A jelszó túl gyenge (legalább 6 karakter kell).';
+    if (m.includes('email') && m.includes('invalid')) return 'Érvénytelen email-cím.';
+    if (m.includes('rate limit') || ex.status === 429) return 'Túl sok próbálkozás, várj egy kicsit.';
+    return 'Hiba történt: ' + ex.message;
+  }
+
+  function syncStatusText() {
+    const t = Sync.lastSync ? new Date(Sync.lastSync).toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : null;
+    switch (Sync.status) {
+      case 'syncing': return { cls: 'busy', text: 'Szinkronizálás…' };
+      case 'ok': return { cls: 'ok', text: `Szinkronizálva${t ? ' · ' + t : ''}` };
+      case 'offline': return { cls: 'warn', text: 'Nincs internet – amint lesz, szinkronizál.' };
+      case 'error': return { cls: 'err', text: 'Hiba: ' + Sync.lastError };
+      default: return { cls: '', text: 'Várakozás…' };
+    }
+  }
+
+  function renderSyncCard() {
+    if (!Sync.enabled) {
+      return `
+        <div class="card settings">
+          <h2>Szinkronizálás</h2>
+          <p class="muted small">A szinkronizálás még nincs beállítva ezen a verzión.</p>
+        </div>`;
+    }
+    if (Sync.user) {
+      const st = syncStatusText();
+      return `
+        <div class="card settings sync-card">
+          <h2>Szinkronizálás</h2>
+          <p class="sync-user">Bejelentkezve: <strong>${esc(Sync.user.email)}</strong></p>
+          <p class="sync-status ${st.cls}" id="sync-status"><span class="dot"></span><span>${esc(st.text)}</span></p>
+          <p class="muted small">A szokásaid, pipáid és a hősöd automatikusan szinkronizálódnak minden eszközön, ahol ezzel a fiókkal bejelentkezel.</p>
+          <label class="setting-row">
+            <span><strong>Megjelenés a ranglétrán</strong><span class="muted small">Csak a hősöd neve, szintje és rangja látszik, az email-címed nem.</span></span>
+            <input type="checkbox" class="switch" id="s-leader" ${Store.state.settings.leaderboardHidden ? '' : 'checked'}>
+          </label>
+          <div class="btn-row">
+            <button class="btn btn-ghost" data-action="sync-now">Szinkronizálás most</button>
+            <button class="btn btn-ghost" data-action="sign-out">Kijelentkezés</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="card settings sync-card">
+        <h2>Szinkronizálás</h2>
+        <p class="muted small">Jelentkezz be ugyanazzal a fiókkal a gépen és a telefonon, és a szokásaid, pipáid és a hősöd automatikusan összeszinkronizálódnak. Az eddigi adataid megmaradnak és összefésülődnek.</p>
+        <form id="sync-form" class="sync-form" novalidate>
+          <input id="sync-email" type="email" placeholder="Email-cím" autocomplete="email" required aria-label="Email-cím">
+          <input id="sync-pass" type="password" placeholder="Jelszó" autocomplete="current-password" required aria-label="Jelszó">
+          <p id="sync-error" class="form-error" role="alert"></p>
+          <p id="sync-info" class="sync-info" role="status"></p>
+          <div class="btn-row">
+            <button type="submit" class="btn btn-primary" data-mode="signin">Bejelentkezés</button>
+            <button type="submit" class="btn btn-ghost" data-mode="signup">Új fiók</button>
+          </div>
+        </form>
+      </div>`;
+  }
+
+  function updateSyncStatus() {
+    const el = $('#sync-status');
+    if (!el) { if (ui.route === 'beallitasok' && Sync.user) render(); return; }
+    const st = syncStatusText();
+    el.className = 'sync-status ' + st.cls;
+    el.lastElementChild.textContent = st.text;
   }
 
   // ---------- Esti értesítés (amíg az app nyitva van) ----------
@@ -853,8 +962,7 @@
     const due = Store.dueHabits(today);
     const left = due.filter(h => !Store.isDone(today, h.id)).length;
     if (!left) return;
-    s.lastNotified = today;
-    Store.save();
+    Store.setLocal({ lastNotified: today });
     const opts = { body: `Még ${left} szokás vár kipipálásra ma.`, icon: 'icons/icon-192.png', tag: 'habyt-checkin' };
     if (navigator.serviceWorker?.controller) {
       navigator.serviceWorker.ready.then(r => r.showNotification('Habyt – esti check-in 🌙', opts));
@@ -917,21 +1025,17 @@
     restore(b) { Store.restore(b.dataset.id); toast('Visszaállítva.'); render(); },
     'add-catalog'(b) { addFromCatalog(b.dataset.cid); },
     'set-goal'(b) {
-      Store.state.settings.goal = b.dataset.goal;
-      Store.state.settings.onboarded = true;
-      Store.save();
+      Store.setShared({ goal: b.dataset.goal, onboarded: true });
       toast(`Cél: ${GOALS[b.dataset.goal].label}`);
       render();
     },
     'set-skin'(b) {
-      Store.state.settings.heroSkin = b.dataset.skin;
-      Store.save();
+      Store.setShared({ heroSkin: b.dataset.skin });
       rerenderInPlace();
       $('#skin-preview').innerHTML = Hero.svg(Hero.compute().stage, 'proud');
     },
     'set-gender'(b) {
-      Store.state.settings.heroGender = b.dataset.gender;
-      Store.save();
+      Store.setShared({ heroGender: b.dataset.gender });
       rerenderInPlace();
       $('#skin-preview').innerHTML = Hero.svg(Hero.compute().stage, 'proud');
     },
@@ -970,8 +1074,15 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     },
     import() { $('#import-file').click(); },
+    'sync-now'() { Sync.syncNow(); },
+    async 'sign-out'() {
+      if (!confirm('Kijelentkezel? Az adataid ezen az eszközön megmaradnak, de nem szinkronizálódnak tovább.')) return;
+      await Sync.signOut();
+      toast('Kijelentkezve.');
+    },
     reset() {
-      if (!confirm('Biztosan törlöd az összes szokást és eredményt? Ez nem vonható vissza.')) return;
+      const where = Sync.user ? ' Az összes szinkronizált eszközödről is törlődik.' : '';
+      if (!confirm('Biztosan törlöd az összes szokást és eredményt? Ez nem vonható vissza.' + where)) return;
       Store.reset();
       ui.dayKey = D.today();
       toast('Minden adat törölve.');
@@ -1037,7 +1148,21 @@
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
+  // Szinkron: más eszközről érkezett változásnál újrarajzolás.
+  Sync.on('data', () => render());
+  Sync.on('auth', () => render());
+  Sync.on('status', updateSyncStatus);
+
+  const redirect = Sync.consumeRedirect();
+  if (redirect && !redirect.ok) toast('A megerősítés nem sikerült: ' + redirect.message);
+  if (redirect && redirect.ok) {
+    redirect.done
+      .then(() => toast('Email megerősítve, bejelentkezve. ✓'))
+      .catch(() => toast('A bejelentkezés nem sikerült, próbáld újra.'));
+  }
+
   if (ui.checkin) location.hash = '#ma';
   onRoute();
   checkReminder();
+  Sync.start();
 })();
