@@ -1057,3 +1057,20 @@ dialog.quiz h2 { margin-bottom: 6px; line-height: 1.25; }
 .quiz-cta p { margin: 2px 0 0; }
 .quiz-cta .btn { margin-left: auto; flex: none; }
 @media (max-width: 480px) { .quiz-cta { flex-wrap: wrap; } .quiz-cta .btn { width: 100%; } }
+/* ---------- Belépőoldal (bejelentkezés nélkül nem használható az app) ---------- */
+
+.auth-gate {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px calc(32px + env(safe-area-inset-bottom));
+}
+.gate-inner { width: 100%; max-width: 420px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.gate-brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 800; letter-spacing: 0.02em; }
+.gate-hero { width: 128px; margin: 18px auto 6px; animation: bob 3s ease-in-out infinite; }
+.auth-gate h1 { margin: 6px 0 8px; font-size: 26px; }
+.gate-sub { margin: 0 0 18px; line-height: 1.5; }
+.gate-card { width: 100%; text-align: left; }
+.gate-card .sync-form { margin-top: 0; }
+.gate-card .sync-form .btn-primary { flex: 1; }
+.gate-note { margin-top: 14px; }

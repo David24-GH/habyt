@@ -20,8 +20,10 @@
     calMonth: D.today().slice(0, 7),
     editId: null,
     preset: null,
-    authMode: 'signin', // signin | signup | forgot
-    authEmail: '',
+    // Első megnyitáskor regisztráció; ha ezen az eszközön már volt fiók, bejelentkezés.
+    authMode: lastEmail() ? 'signin' : 'signup', // signin | signup | forgot
+    authEmail: lastEmail(),
+    authPending: false,
   };
   let installPrompt = null;
 
@@ -1131,7 +1133,9 @@
       Store.setShared({ leaderboardHidden: !e.target.checked });
       toast(e.target.checked ? 'A hősöd megjelenik a ranglétrán.' : 'A hősöd rejtve marad a ranglétrán.');
     });
+  }
 
+  function bindAuthForm() {
     const form = $('#sync-form');
     if (form) {
       const pass2 = $('#sync-pass2');
@@ -1164,7 +1168,9 @@
         try {
           if (mode === 'signin') {
             await Sync.signIn(email, password);
+            rememberEmail(email);
             toast('Bejelentkezve, szinkronizálva. ✓');
+            maybeStartQuiz();
           } else if (mode === 'forgot') {
             await Sync.requestReset(email);
             info.textContent = `Ha van fiók ezzel a címmel (${email}), küldtünk rá egy levelet. A benne lévő linkkel új jelszót adhatsz meg.`;
@@ -1172,6 +1178,7 @@
             if (!(await Sync.nameAvailable(name))) return fail(`A(z) „${name}” hősnév már foglalt. Válassz másikat!`);
             const signedIn = await Sync.signUp(email, password, name);
             Store.setShared({ heroName: name });
+            rememberEmail(email);
             if (signedIn) { toast('Fiók létrehozva, szinkronizálva. ✓'); maybeStartQuiz(); }
             else info.textContent = `Küldtünk egy megerősítő emailt ide: ${email}. Kattints a benne lévő linkre, és utána már be is leszel jelentkezve.`;
           }
@@ -1236,6 +1243,51 @@
           </div>
         </div>`;
     }
+    return '';
+  }
+
+  // ---------- Belépés (regisztráció / bejelentkezés / elfelejtett jelszó) ----------
+
+  // Bejelentkezés nélkül az app nem használható: ilyenkor ez a teljes képernyős belépőoldal látszik.
+  const gated = () => Sync.enabled && !Sync.user;
+
+  function lastEmail() {
+    try { return localStorage.getItem('habyt:lastEmail') || ''; } catch (e) { return ''; }
+  }
+  function rememberEmail(email) {
+    try { localStorage.setItem('habyt:lastEmail', email); } catch (e) { /* nem menthető */ }
+  }
+
+  function renderGate() {
+    const gate = $('#auth-gate');
+    if (ui.authPending) {
+      gate.innerHTML = `
+        <div class="gate-inner">
+          <div class="gate-brand"><img src="icons/icon.svg" alt="" width="40" height="40"><span>Habyt</span></div>
+          <div class="gate-hero">${Hero.svg(0, 'ready')}</div>
+          <h1>Bejelentkezés folyamatban…</h1>
+        </div>`;
+      return;
+    }
+    const m = ui.authMode;
+    const head = {
+      signup: ['Kezdd el a kalandot!', 'Hozd létre a hősödet: minden teljesített szokással erősebb lesz. Versenyezz a ranglétrán, és a haladásod a gépen és a telefonon is veled van.'],
+      signin: ['Üdv újra, hős!', 'Jelentkezz be, és folytasd, ahol abbahagytad.'],
+      forgot: ['Elfelejtett jelszó', 'Add meg a fiókod email-címét, és küldünk egy linket, amivel új jelszót adhatsz meg.'],
+    }[m];
+    gate.innerHTML = `
+      <div class="gate-inner">
+        <div class="gate-brand"><img src="icons/icon.svg" alt="" width="40" height="40"><span>Habyt</span></div>
+        <div class="gate-hero">${Hero.svg(m === 'signup' ? 2 : 3, 'proud')}</div>
+        <h1>${head[0]}</h1>
+        <p class="muted gate-sub">${head[1]}</p>
+        <div class="card gate-card">${authForm()}</div>
+        ${m === 'forgot' ? '' : '<p class="muted small gate-note">🔒 Belépve maradsz ezen az eszközön, nem kell minden megnyitáskor újra bejelentkezned.</p>'}
+      </div>`;
+    bindAuthForm();
+  }
+
+  function authForm() {
     const m = ui.authMode;
     const ownName = (Store.state.settings.heroName || '').trim();
     const email = `<input id="sync-email" type="email" placeholder="Email-cím" autocomplete="email" required aria-label="Email-cím" value="${esc(ui.authEmail)}">`;
@@ -1265,12 +1317,7 @@
         <div class="btn-row"><button type="submit" class="btn btn-primary">Új jelszó kérése</button></div>
         <p class="muted small auth-switch">${link('signin', '← Vissza a bejelentkezéshez')}</p>`,
     };
-    return `
-      <div class="card settings sync-card">
-        <h2>${{ signin: 'Bejelentkezés', signup: 'Regisztráció', forgot: 'Elfelejtett jelszó' }[m]}</h2>
-        ${m === 'forgot' ? '' : '<p class="muted small">Jelentkezz be ugyanazzal a fiókkal a gépen és a telefonon, és a szokásaid, pipáid és a hősöd automatikusan összeszinkronizálódnak. Így a ranglétrán is versenyezhetsz.</p>'}
-        <form id="sync-form" class="sync-form" data-mode="${m}" novalidate>${forms[m]}</form>
-      </div>`;
+    return `<form id="sync-form" class="sync-form" data-mode="${m}" novalidate>${forms[m]}</form>`;
   }
 
   function updateSyncStatus() {
@@ -1305,6 +1352,10 @@
   const renderers = { ma: renderToday, szokasok: renderHabits, statisztika: renderStats, profil: renderProfile, beallitasok: renderSettings };
 
   function render() {
+    const locked = gated();
+    $('#auth-gate').hidden = !locked;
+    $('#app').hidden = locked;
+    if (locked) { renderGate(); return; }
     for (const r of ROUTES) $('#view-' + r).hidden = r !== ui.route;
     document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('is-active', a.dataset.route === ui.route));
     renderers[ui.route]();
@@ -1414,9 +1465,16 @@
     },
     import() { $('#import-file').click(); },
     'sync-now'() { Sync.syncNow(); },
-    async 'sign-out'() {
-      if (!confirm('Kijelentkezel? Az adataid ezen az eszközön megmaradnak, de nem szinkronizálódnak tovább.')) return;
+    async 'sign-out'(b) {
+      if (!navigator.onLine) { toast('A kijelentkezéshez internet kell, hogy előbb minden elmentődjön a fiókodba.'); return; }
+      if (!confirm('Kijelentkezel? Az adataid a fiókodban megmaradnak, de az app használatához újra be kell jelentkezned.')) return;
+      b.disabled = true;
       await Sync.signOut();
+      ui.authMode = 'signin';
+      ui.authEmail = lastEmail();
+      ui.dayKey = D.today();
+      location.hash = '#ma';
+      render();
       toast('Kijelentkezve.');
     },
     reset() {
@@ -1497,7 +1555,9 @@
   const redirect = Sync.consumeRedirect();
   if (redirect && !redirect.ok) toast('A megerősítés nem sikerült: ' + redirect.message);
   if (redirect && redirect.ok) {
+    ui.authPending = true;
     redirect.done
+      .finally(() => { ui.authPending = false; render(); })
       .then(() => {
         if (redirect.recovery) { $('#password-dialog').showModal(); $('#pw-new').focus(); }
         else { toast('Email megerősítve, bejelentkezve. ✓'); maybeStartQuiz(); }

@@ -287,6 +287,12 @@ const Store = (() => {
       save();
     },
 
+    // Kijelentkezéskor: az eszközről eltűnnek a fiók adatai (a szerveren megmaradnak), nem szinkronizálódik törlésként.
+    wipe() {
+      state = fresh();
+      persist();
+    },
+
     // --- Szinkron ---
     shareable,
     canonical,

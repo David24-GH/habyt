@@ -279,8 +279,14 @@ const Sync = (() => {
     await data('/auth/v1/user', { method: 'PUT', body: { password } });
   }
 
+  // Kijelentkezés: előbb még feltölti a friss változásokat, aztán törli a fiók adatait erről az eszközről
+  // (így egy másik fiók belépésekor nem keverednek az adatok; a szerveren minden megmarad).
   async function signOut() {
+    clearTimeout(timer);
+    while (running) await new Promise(r => setTimeout(r, 100));
+    await syncNow();
     try { await request('/auth/v1/logout', { method: 'POST' }); } catch (e) { /* offline is kijelentkezhet */ }
+    Store.wipe();
     setSession(null);
     lastSync = null;
     published = '';
@@ -295,7 +301,7 @@ const Sync = (() => {
     const h = location.hash.slice(1);
     if (!/(^|&)(access_token|error_description)=/.test(h)) return null;
     const p = new URLSearchParams(h);
-    history.replaceState(null, '', location.pathname + location.search + '#beallitasok');
+    history.replaceState(null, '', location.pathname + location.search + '#ma');
     if (p.get('error_description')) return { ok: false, message: p.get('error_description') };
     const token = {
       access_token: p.get('access_token'),

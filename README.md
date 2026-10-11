@@ -38,7 +38,11 @@ Kikapcsolás: `uninstall-reminder.ps1`.
 
 ## Szinkronizálás (PC ↔ telefon)
 
-**Beállítások → Szinkronizálás**: jelentkezz be ugyanazzal az email-címmel és jelszóval minden eszközön.
+Az app csak bejelentkezve használható: megnyitáskor a belépőoldal jön (regisztráció hősnévvel és kétszer megadott jelszóval,
+bejelentkezés, elfelejtett jelszó). Regisztráció után egy rövid kezdő kérdőív ajánl szokásokat. A bejelentkezés megmarad
+az eszközön; kijelentkezéskor az adatok eltűnnek az eszközről, de a fiókban megmaradnak.
+
+Jelentkezz be ugyanazzal az email-címmel és jelszóval minden eszközön.
 Az adatok a böngészőben is megmaradnak, így az app net nélkül is megy, és amint lesz internet, szinkronizál.
 
 - Ha az egyik eszközön az egyik, a másikon egy másik szokást pipálsz ki, mindkettő megmarad.
