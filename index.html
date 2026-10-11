@@ -131,11 +131,17 @@
       <p class="muted small">Add meg kétszer az új jelszavad (legalább 6 karakter).</p>
       <label class="field">
         <span>Új jelszó</span>
-        <input id="pw-new" type="password" autocomplete="new-password" required>
+        <div class="pw-field">
+          <input id="pw-new" type="password" autocomplete="new-password" required>
+          <button type="button" class="pw-eye" aria-label="Jelszó megjelenítése (tartsd lenyomva)" title="Tartsd lenyomva a jelszó megjelenítéséhez"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg></button>
+        </div>
       </label>
       <label class="field">
         <span>Új jelszó még egyszer</span>
-        <input id="pw-new2" type="password" autocomplete="new-password" required>
+        <div class="pw-field">
+          <input id="pw-new2" type="password" autocomplete="new-password" required>
+          <button type="button" class="pw-eye" aria-label="Jelszó megjelenítése (tartsd lenyomva)" title="Tartsd lenyomva a jelszó megjelenítéséhez"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg></button>
+        </div>
       </label>
       <p id="pw-error" class="form-error" role="alert"></p>
       <div class="dlg-actions">

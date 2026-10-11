@@ -1287,6 +1287,11 @@
     bindAuthForm();
   }
 
+  // Jelszómező szem gombbal: lenyomva tartva látszik a jelszó, elengedve újra rejtett.
+  const EYE_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg>';
+  const EYE_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const pwField = input => `<div class="pw-field">${input}<button type="button" class="pw-eye" aria-label="Jelszó megjelenítése (tartsd lenyomva)" title="Tartsd lenyomva a jelszó megjelenítéséhez">${EYE_OFF}</button></div>`;
+
   function authForm() {
     const m = ui.authMode;
     const ownName = (Store.state.settings.heroName || '').trim();
@@ -1295,7 +1300,7 @@
     const forms = {
       signin: `
         ${email}
-        <input id="sync-pass" type="password" placeholder="Jelszó" autocomplete="current-password" required aria-label="Jelszó">
+        ${pwField('<input id="sync-pass" type="password" placeholder="Jelszó" autocomplete="current-password" required aria-label="Jelszó">')}
         <p id="sync-error" class="form-error" role="alert"></p>
         <p id="sync-info" class="sync-info" role="status"></p>
         <div class="btn-row"><button type="submit" class="btn btn-primary">Bejelentkezés</button>${link('forgot', 'Elfelejtettem a jelszavam')}</div>
@@ -1303,8 +1308,8 @@
       signup: `
         <input id="sync-name" type="text" maxlength="20" placeholder="A hősöd neve (egyedi, pl. Villám)" autocomplete="nickname" required aria-label="A hősöd neve" value="${ownName && ownName !== 'Hős' ? esc(ownName) : ''}">
         ${email}
-        <input id="sync-pass" type="password" placeholder="Jelszó (legalább 6 karakter)" autocomplete="new-password" required aria-label="Jelszó">
-        <input id="sync-pass2" type="password" placeholder="Jelszó még egyszer" autocomplete="new-password" required aria-label="Jelszó még egyszer">
+        ${pwField('<input id="sync-pass" type="password" placeholder="Jelszó (legalább 6 karakter)" autocomplete="new-password" required aria-label="Jelszó">')}
+        ${pwField('<input id="sync-pass2" type="password" placeholder="Jelszó még egyszer" autocomplete="new-password" required aria-label="Jelszó még egyszer">')}
         <p id="sync-error" class="form-error" role="alert"></p>
         <p id="sync-info" class="sync-info" role="status"></p>
         <div class="btn-row"><button type="submit" class="btn btn-primary">Regisztráció</button></div>
@@ -1564,6 +1569,30 @@
       })
       .catch(() => toast('A bejelentkezés nem sikerült, próbáld újra.'));
   }
+
+  // Szem gomb: amíg lenyomva tartod (egérrel, ujjal vagy Space/Enter billentyűvel), látszik a jelszó.
+  function peek(btn, show) {
+    const input = btn.parentElement.querySelector('input');
+    if (!input) return;
+    input.type = show ? 'text' : 'password';
+    btn.innerHTML = show ? EYE_ON : EYE_OFF;
+    btn.classList.toggle('is-on', show);
+  }
+  document.addEventListener('pointerdown', e => {
+    const btn = e.target.closest('.pw-eye');
+    if (!btn || btn.disabled) return;
+    e.preventDefault(); // a fókusz a jelszómezőben marad
+    peek(btn, true);
+    const hide = () => {
+      peek(btn, false);
+      ['pointerup', 'pointercancel', 'blur'].forEach(t => window.removeEventListener(t, hide));
+    };
+    ['pointerup', 'pointercancel', 'blur'].forEach(t => window.addEventListener(t, hide));
+  });
+  const eyeKey = e => (e.key === ' ' || e.key === 'Enter') && e.target.closest && e.target.closest('.pw-eye');
+  document.addEventListener('keydown', e => { const b = eyeKey(e); if (b) { e.preventDefault(); if (!e.repeat) peek(b, true); } });
+  document.addEventListener('keyup', e => { const b = eyeKey(e); if (b) peek(b, false); });
+  document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.pw-eye')) e.preventDefault(); });
 
   // Jelszó-visszaállítás: az emailben kapott link után új jelszó (kétszer megadva).
   $('#pw-cancel').addEventListener('click', () => $('#password-dialog').close());
